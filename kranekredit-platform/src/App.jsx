@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { AppProvider, useApp } from './router.jsx';
 import { DataProvider, useData } from './data/DataContext.jsx';
 import Layout, { PAGE_META } from './components/Layout.jsx';
@@ -12,7 +13,10 @@ import ApiDocs from './pages/ApiDocs.jsx';
 import Users from './pages/Users.jsx';
 import Compliance from './pages/Compliance.jsx';
 import Settings from './pages/Settings.jsx';
+import Login from './pages/Login.jsx';
 import NotFound from './pages/NotFound.jsx';
+import { bootstrap, useSession } from './api/auth.js';
+import { LIVE } from './config.js';
 
 const ROUTES = {
   '/': Dashboard, '/checks': Checks, '/checks/new': NewCheck, '/decision-engine': DecisionEngine, '/loan-queue': LoanQueue,
@@ -44,13 +48,34 @@ function Toast() {
   );
 }
 
+// Live mode requires a session; mock mode stays open so the prototype keeps
+// working with no backend at all.
+function Gate({ children }) {
+  const { ready, user } = useSession();
+
+  useEffect(() => { if (LIVE) bootstrap(); }, []);
+
+  if (!LIVE) return children;
+  if (!ready) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-slate-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
+      </div>
+    );
+  }
+  if (!user) return <Login />;
+  return children;
+}
+
 export default function App() {
   return (
-    <DataProvider>
-      <AppProvider>
-        <Router />
-        <Toast />
-      </AppProvider>
-    </DataProvider>
+    <Gate>
+      <DataProvider>
+        <AppProvider>
+          <Router />
+          <Toast />
+        </AppProvider>
+      </DataProvider>
+    </Gate>
   );
 }

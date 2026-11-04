@@ -1,34 +1,69 @@
 import { useState } from 'react';
-import { UserPlus, ShieldAlert, Clock, X, Check, History } from 'lucide-react';
+import { UserPlus, ShieldAlert, Clock, X, Check, History, Loader2, AlertCircle } from 'lucide-react';
 import { Card, CardHeader, PillTabs, Avatar, cn } from '../components/ui.jsx';
 import { ROLE_STYLE } from '../data/core.js';
 import { useData } from '../data/DataContext.jsx';
 import { useApp } from '../router.jsx';
+import { team } from '../api/resources.js';
+import { useApi, describeError } from '../api/useApi.js';
+import { LIVE } from '../config.js';
+
+const fmtDate = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
 export default function Users() {
   const { USERS, APPROVALS, AUDIT } = useData();
   const { notify } = useApp();
   const [tab, setTab] = useState('team');
   const [approvals, setApprovals] = useState(APPROVALS);
+  const live = useApi(() => team.members(), [], { enabled: LIVE });
+
+  // Live rows keep the same shape the table already renders.
+  const rows = LIVE && live.data
+    ? live.data.map((m) => ({
+        name: m.full_name,
+        email: m.email,
+        role: m.role_label,
+        status: 'Active',
+        last: m.is_you ? 'You' : `Joined ${fmtDate(m.joined_at)}`,
+      }))
+    : USERS;
+
   const decide = (a, ok) => {
     if (ok && a.meta.includes('Requested by You')) return notify('Four-eyes rule: you made this request, so another checker must approve it');
     setApprovals(approvals.filter((x) => x.id !== a.id));
     notify(`${a.title} ${ok ? 'approved' : 'rejected'}`);
   };
 
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <PillTabs value={tab} onChange={setTab} tabs={[{ key: 'team', label: 'Team' }, { key: 'approvals', label: 'Pending Approvals', badge: approvals.length || null }, { key: 'audit', label: 'Audit Log' }]} />
-        <button onClick={() => notify('Invite sent for approval (admin invites need a checker)')} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 text-[13px] font-medium text-white shadow-sm hover:bg-indigo-700"><UserPlus className="h-4 w-4" />Invite Member</button>
+        <button onClick={() => notify(LIVE ? 'Invite flow is not wired yet — backend is ready at POST /team/invites' : 'Invite sent for approval (admin invites need a checker)')} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 text-[13px] font-medium text-white shadow-sm hover:bg-indigo-700"><UserPlus className="h-4 w-4" />Invite Member</button>
       </div>
+
+      {tab === 'team' && LIVE && live.loading && (
+        <Card className="flex items-center gap-3 p-6 text-[13px] text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />Loading team members…
+        </Card>
+      )}
+      {tab === 'team' && LIVE && live.error && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-[13px] text-amber-800">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{describeError(live.error)}</span>
+        </div>
+      )}
 
       {tab === 'team' && (
         <Card className="thin-scroll overflow-x-auto">
           <table className="w-full min-w-[720px] text-[13px]">
             <thead><tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wider text-slate-500">{['Member', 'Role', 'Status', 'Last Active'].map((h) => <th key={h} className="px-5 py-3.5 font-semibold">{h}</th>)}</tr></thead>
             <tbody>
-              {USERS.map((u) => (
+              {rows.map((u) => (
                 <tr key={u.email} className="border-b border-slate-100 last:border-0">
                   <td className="px-5 py-3.5"><div className="flex items-center gap-3"><Avatar name={u.name} gradient /><div><div className="font-medium text-slate-900">{u.name}</div><div className="text-[12px] text-slate-500">{u.email}</div></div></div></td>
                   <td className="px-5 py-3.5"><span className={cn('rounded-full px-2 py-0.5 text-[11.5px] font-medium', ROLE_STYLE[u.role])}>{u.role}</span></td>

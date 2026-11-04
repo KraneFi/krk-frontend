@@ -418,3 +418,30 @@ d6f8b0c2e4a6 → e8a0c2d4f6b8`) and five new modules:
   fails to build. **This needs a proper PR** — it affects every Intel-Mac contributor.
 - WIP from `feat/sdk-worker-staging` is in `git stash@{0}` (async scoring + asyncpg tz
   fixes, JWT `jti`, persona `individual_id`).
+
+---
+
+## 14. Slice 1 status — wired and verified (2026-11-04)
+
+Live against local `staging`, verified in a headless browser (not just compiled):
+
+| Piece | State |
+|---|---|
+| `src/api/client.js` | fetch client, JWT bearer, 401→refresh→retry, backend `{error:{code,detail,request_id}}` normalisation |
+| `src/api/auth.js` | login **with MFA branch** (`mfa_required` → `/auth/login/mfa`), signup, logout, session restore on boot |
+| `src/pages/Login.jsx` | login + MFA challenge screen |
+| `src/App.jsx` | auth gate — live mode requires a session, mock mode stays open |
+| `src/components/Layout.jsx` | real user + role in the sidebar, sign-out |
+| **Users** | live from `GET /team/members` |
+| **Compliance** | live from `GET /orgs/current/access` + `GET /orgs/current/verification` |
+
+**Console bootstrap verified end-to-end:** `POST /auth/signup` (lender) → `POST
+/auth/email/send-code` → `/auth/email/verify` → `POST /orgs` → team + KYB both 200.
+Note the demo consumer login (`/demo/quick-login`) **cannot** see team/KYB — it is not an
+org member, so the console needs a lender account.
+
+`VITE_DATA_MODE` still defaults to `live`; set it to `mock` to get the original generated
+dataset back with no API at all. `VITE_API_BASE` switches between local and Render.
+
+**Still mock:** Checks, Check Detail, Dashboard, Decision Engine, Loan Queue, Servicing,
+API & Docs, Users → Approvals/Audit tabs, Compliance → Lineage/Retention/Export tabs.

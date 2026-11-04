@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import {
   LayoutGrid, FileCheck2, SlidersHorizontal, KanbanSquare, CreditCard, Code2, Users, ShieldCheck, Settings2,
-  ChevronRight, Sparkles, Search, Bell, Plus, Menu, X, Shuffle,
+  ChevronRight, Sparkles, Search, Bell, Plus, Menu, X, Shuffle, LogOut,
 } from 'lucide-react';
 import { useData } from '../data/DataContext.jsx';
 import { useApp } from '../router.jsx';
+import { useSession, logout } from '../api/auth.js';
+import { LIVE } from '../config.js';
 import { cn } from './ui.jsx';
+
+const initialsOf = (name = '') => name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 
 const NAV = [
   { group: 'Overview', items: [{ to: '/', label: 'Dashboard', icon: LayoutGrid }] },
@@ -41,6 +45,7 @@ export const PAGE_META = {
 
 function Sidebar({ open, onClose }) {
   const { path, navigate } = useApp();
+  const session = useSession();
   const isActive = (to) => (to === '/' ? path === '/' : path === to || path.startsWith(to + '/'));
   return (
     <aside
@@ -104,11 +109,18 @@ function Sidebar({ open, onClose }) {
       </nav>
 
       <div className="flex items-center gap-3 border-t border-white/10 px-5 py-4" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))' }}>
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-[11px] font-semibold text-white">DK</span>
-        <div className="leading-tight">
-          <div className="text-[13px] font-semibold text-white">Dammy Krane</div>
-          <div className="text-[11.5px] text-slate-400">Org Admin · KraneTech</div>
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-[11px] font-semibold text-white">
+          {initialsOf(LIVE ? (session.user?.full_name || '?') : 'Dammy Krane')}
+        </span>
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className="truncate text-[13px] font-semibold text-white">{LIVE ? (session.user?.full_name || 'Signed in') : 'Dammy Krane'}</div>
+          <div className="truncate text-[11.5px] text-slate-400">{LIVE ? (session.user?.member_role || session.user?.role || '') : 'Org Admin · KraneTech'}</div>
         </div>
+        {LIVE && (
+          <button onClick={logout} title="Sign out" className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white" aria-label="Sign out">
+            <LogOut className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </aside>
   );

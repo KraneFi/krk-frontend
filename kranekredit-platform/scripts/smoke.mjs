@@ -1,0 +1,59 @@
+// Headless smoke: inject a session, load a route, report visible text + console errors.
+// Usage: node scripts/smoke.mjs <path> [--token=...] [--refresh=...]
+const [, , route = '/', ...flags] = process.argv
+const arg = (k) => flags.find((f) => f.startsWith(`--${k}=`))?.split('=')[1]
+const token = arg('token') || ''
+const refresh = arg('refresh') || ''
+const base = 'http://localhost:5173'
+
+const targets = await (await fetch('http://127.0.0.1:9222/json')).json()
+const page = targets.find((t) => t.type === 'page')
+const ws = new WebSocket(page.webSocketDebuggerUrl)
+let id = 0
+const pending = new Map()
+const errors = []
+
+ws.addEventListener('message', (e) => {
+  const msg = JSON.parse(e.data)
+  if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg.result); pending.delete(msg.id) }
+  if (msg.method === 'Runtime.exceptionThrown') errors.push(msg.params.exceptionDetails.text + ' ' + (msg.params.exceptionDetails.exception?.description || ''))
+  if (msg.method === 'Runtime.consoleAPICalled' && msg.params.type === 'error') errors.push(msg.params.args.map((a) => a.value ?? a.description).join(' '))
+})
+
+const send = (method, params = {}) => new Promise((res) => { const i = ++id; pending.set(i, res); ws.send(JSON.stringify({ id: i, method, params })) })
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+await new Promise((r) => ws.addEventListener('open', r))
+await send('Runtime.enable')
+await send('Page.enable')
+
+// Seed the session before the app boots.
+await send('Page.navigate', { url: `${base}/` })
+await sleep(1200)
+await send('Runtime.evaluate', {
+  expression: `localStorage.setItem('kk-access-token', ${JSON.stringify(token)}); localStorage.setItem('kk-refresh-token', ${JSON.stringify(refresh)});`,
+})
+
+await send('Page.navigate', { url: `${base}${route}` })
+await sleep(3000)
+
+// The app uses an in-memory router: navigate by clicking the sidebar link.
+const navLabel = arg('nav')
+if (navLabel) {
+  await send('Runtime.evaluate', {
+    expression: `(() => { const a = [...document.querySelectorAll('aside a')].find(x => x.textContent.trim() === ${JSON.stringify(navLabel)}); if (a) a.click(); return !!a })()`,
+    returnByValue: true,
+  })
+  await sleep(2500)
+}
+
+const { result } = await send('Runtime.evaluate', {
+  expression: `document.body.innerText.replace(/\\n{2,}/g, '\\n').slice(0, 1600)`,
+  returnByValue: true,
+})
+
+console.log('--- route:', route)
+console.log(result.value)
+console.log('--- console errors:', errors.length ? errors.slice(0, 5).join(' | ') : 'none')
+ws.close()
+process.exit(0)
