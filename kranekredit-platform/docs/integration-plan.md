@@ -433,7 +433,7 @@ Live against local `staging`, verified in a headless browser (not just compiled)
 | `src/App.jsx` | auth gate — live mode requires a session, mock mode stays open |
 | `src/components/Layout.jsx` | real user + role in the sidebar, sign-out |
 | **Users** | live from `GET /team/members` |
-| **Compliance** | live from `GET /orgs/current/access` + `GET /orgs/current/verification` |
+| **Compliance** | live from `GET /orgs/current/access` + `GET /orgs/current/verification`; every checklist item opens a working panel (see below) |
 | **API & Docs** | API Keys live from `/tenants/{id}/keys` (list, create with one-time `raw_key`, revoke); Reference Docs generated from the running `/openapi.json`. Webhooks / Logs / Connections show explicit "not wired" notices instead of invented data |
 | **Settings** | Company profile live from `GET/PATCH /orgs/current` (editable: display name, website, support phone; legal fields read-only because they require a review request); Billing shows a "needs BFF" notice |
 
@@ -450,6 +450,19 @@ risk R1–R5 now match the backend in both mock and live paths (`src/data/core.j
 `gen-check.js`, `ui.jsx`). Verified: Dashboard shows a T1–T6 distribution, Check Detail
 renders `KRK-850-R1-D2-T5` with a "0–1000 scale" label.
 
-**Still mock:** Checks, Check Detail, Dashboard, Decision Engine, Loan Queue, Servicing,
-Users → Approvals/Audit tabs, Compliance → Lineage/Retention/Export tabs.
+**KYB checklist interactive (2026-11-04):** `KybItemPanel` wires every item kind the backend
+supports — `form` (with draft + submit), `doc` (multipart upload then submit), `attest`
+(consent), `director` (identity link: send/resend/revoke/copy), `otp` (phone send/verify via
+`/auth/phone/*`), `twofa` (TOTP via `/auth/mfa/*`), and `link` (navigates to the matching
+console page). Verified end-to-end through the UI: business basics submitted, CAC certificate
+uploaded and submitted (`in_review`), consent attested, director link issued, phone verified
+from a console-SMS code, TOTP enabled from a computed code — access moved **Level 0 → Level 1
+(Sandbox)** as a result.
+
+**Outcome badge (2026-11-04):** `OutcomeBadge` styles the backend's `ScoreOutcome`
+(`FULL`/`DEGRADED`/`MINIMAL`/`NO_SCORE`) as *engine coverage* ("MINIMAL · 1 engine"), kept
+visually separate from the tier badge so a single-engine score is not read as a bad score.
+
+**Still mock:** Checks, Check Detail (report body), Dashboard, Decision Engine, Loan Queue,
+Servicing, Users → Approvals/Audit tabs, Compliance → Lineage/Retention/Export tabs.
 **Deliberately blank (no endpoint):** API & Docs → Webhooks / Logs / Connections.

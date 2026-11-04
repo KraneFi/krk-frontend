@@ -1,7 +1,10 @@
 // Headless smoke: inject a session, load a route, report visible text + console errors.
 // Usage: node scripts/smoke.mjs <path> [--token=...] [--refresh=...]
 const [, , route = '/', ...flags] = process.argv
-const arg = (k) => flags.find((f) => f.startsWith(`--${k}=`))?.split('=')[1]
+const arg = (k) => {
+  const flag = flags.find((f) => f.startsWith(`--${k}=`))
+  return flag ? flag.slice(k.length + 3) : undefined
+}
 const token = arg('token') || ''
 const refresh = arg('refresh') || ''
 const base = 'http://localhost:5173'
@@ -48,10 +51,12 @@ if (navLabel) {
 }
 
 // Click any button/tab by its visible label, for second-level navigation.
+// `--nth=1` picks the second match (lists repeat "Start").
 const clickLabel = arg('click')
+const nth = Number(arg('nth') || 0)
 if (clickLabel) {
   await send('Runtime.evaluate', {
-    expression: `(() => { const b = [...document.querySelectorAll('button, a')].find(x => x.textContent.trim() === ${JSON.stringify(clickLabel)}); if (b) b.click(); return !!b })()`,
+    expression: `(() => { const b = [...document.querySelectorAll('button, a')].filter(x => x.textContent.trim() === ${JSON.stringify(clickLabel)})[${nth}]; if (b) b.click(); return !!b })()`,
     returnByValue: true,
   })
   await sleep(2500)
@@ -63,6 +68,19 @@ if (clickLabel) {
     })
     await sleep(3000)
   }
+}
+
+// Run arbitrary setup (fill inputs, click submit) after the navigation settles.
+const script = arg('eval')
+if (script) {
+  const out = await send('Runtime.evaluate', {
+    expression: `(async () => { ${script} })()`,
+    returnByValue: true,
+    awaitPromise: true,
+  })
+  if (out.exceptionDetails) console.log('--- eval error:', out.exceptionDetails.text)
+  else if (out.result?.value !== undefined) console.log('--- eval:', JSON.stringify(out.result.value))
+  await sleep(3000)
 }
 
 const { result } = await send('Runtime.evaluate', {

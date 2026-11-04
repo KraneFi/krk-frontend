@@ -61,14 +61,16 @@ function toError(status, body) {
 }
 
 async function send(path, { method = 'GET', body, auth = true, retry = true } = {}) {
+  // FormData must go out untouched: the browser sets the multipart boundary.
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData
   const headers = { Accept: 'application/json' }
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   if (auth && tokens.access) headers.Authorization = `Bearer ${tokens.access}`
 
   const res = await fetch(`${API_BASE}${PREFIX}${path}`, {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   })
 
   if (res.status === 401 && auth && retry && tokens.refresh) {
@@ -102,8 +104,14 @@ async function refreshSession() {
 export const api = {
   get: (path, opts) => send(path, { ...opts, method: 'GET' }),
   post: (path, body, opts) => send(path, { ...opts, method: 'POST', body }),
+  put: (path, body, opts) => send(path, { ...opts, method: 'PUT', body }),
   patch: (path, body, opts) => send(path, { ...opts, method: 'PATCH', body }),
   del: (path, opts) => send(path, { ...opts, method: 'DELETE' }),
+  upload: (path, file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return send(path, { method: 'POST', body: form })
+  },
 }
 
 export { API_BASE }

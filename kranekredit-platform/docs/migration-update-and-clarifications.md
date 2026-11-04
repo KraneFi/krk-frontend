@@ -146,12 +146,17 @@ non-production only, so we don't build a flow that 404s in staging/prod.
 - Staying on generated mock data behind a flag (`VITE_USE_MOCK`), so the demo keeps working
   while the adapter is built.
 - **Users** and **Compliance** move from "mock" to "wire to real API" given `team/*` and
-  `kyb/*` now exist.
+  the KYB routes now exist. Note: the KYB surface is mounted under **`/orgs/*`**
+  (`/orgs/current/verification`, `/orgs/current/directors/links`), not `/kyb/*`.
+- **Users**, **Compliance** and **API & Docs / Settings** are now wired to the real API
+  (auth, team, KYB checklist, tenant keys, org profile). The KYB checklist is interactive:
+  forms, document upload, consent attestation, director links, phone verification and TOTP
+  all submit to the API and move the access tier.
 - **New Check** will change shape: the backend is **document upload + extraction**, not NIBSS
   BVN→account enumeration. The current 4-step wizard's account-picker step has no API
   equivalent and will be replaced with an upload step.
-- Nothing is wired yet — we're holding until items 1–3 are decided, since they determine
-  the data model for every screen.
+- The scoring screens stay on generated mock data behind a flag (`VITE_DATA_MODE=mock`)
+  until the score-scale, decision and list questions below are settled.
 
 ---
 

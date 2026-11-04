@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock, Check, Clock, Hourglass, ShieldCheck, Database, GitMerge, Trash2, Download, Loader2, AlertCircle } from 'lucide-react';
+import { Lock, Check, Clock, Hourglass, ShieldCheck, Database, GitMerge, Trash2, Download, Loader2, AlertCircle, ChevronRight, ChevronDown } from 'lucide-react';
 import { Card, CardHeader, PillTabs, IconTile, cn } from '../components/ui.jsx';
 import { ACCESS_TIERS, RETENTION } from '../data/core.js';
 import { useData } from '../data/DataContext.jsx';
@@ -7,6 +7,7 @@ import { useApp } from '../router.jsx';
 import { kyb } from '../api/resources.js';
 import { useApi, describeError } from '../api/useApi.js';
 import { LIVE } from '../config.js';
+import KybItemPanel from '../components/KybItemPanel.jsx';
 
 const LINEAGE_ICON = { ShieldCheck, Database, Check, GitMerge };
 
@@ -34,6 +35,7 @@ export default function Compliance() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [cust, setCust] = useState('');
+  const [openKey, setOpenKey] = useState(null);
   const access = useApi(() => kyb.access(), [], { enabled: LIVE });
   const verification = useApi(() => kyb.verification(), [], { enabled: LIVE });
 
@@ -48,9 +50,11 @@ export default function Compliance() {
   const docs = LIVE && verification.data
     ? verification.data.groups.flatMap((g) => g.items).map((it) => {
         const s = DOC_STATUS[it.status] || { label: it.status, ok: false };
-        return { name: it.title, status: s.label, ok: s.ok, why: it.why, updated: it.updated_at };
+        return { key: it.key, name: it.title, status: s.label, ok: s.ok, why: it.why, updated: it.updated_at };
       })
     : KYB_DOCS.map((d) => ({ ...d, status: d.status, ok: d.status === 'Verified', why: null }));
+
+  const refreshCompliance = () => { access.refetch(); verification.refetch(); };
 
   return (
     <div className="space-y-6">
@@ -97,21 +101,72 @@ export default function Compliance() {
             )}
           </Card>
           <Card className="overflow-hidden">
-            <div className="p-5"><CardHeader title="KYB Documents" sub={LIVE && verification.data ? `${docs.filter((d) => d.ok).length} of ${docs.length} verified` : 'Dynamic checklist scoped to institution type: CBN-Licensed Digital Lender'} /></div>
-            {docs.map((d) => (
-              <div key={d.name} className="flex flex-wrap items-center gap-4 border-t border-slate-100 px-5 py-3.5">
-                <IconTile icon={d.ok ? Check : Clock} size="sm" className={cn('h-9 w-9', d.ok ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')} />
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] font-medium text-slate-900">{d.name}</div>
-                  <div className="text-[12px] text-slate-500">{d.why || (d.date ? `Uploaded ${d.date}` : 'Awaiting submission')}</div>
-                </div>
-                {d.ok
-                  ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11.5px] font-medium text-emerald-700"><Check className="h-3 w-3" />Verified</span>
-                  : d.status === 'In Review'
-                    ? <><span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11.5px] font-medium text-amber-700"><Hourglass className="h-3 w-3" />In Review</span><span className="text-[12px] text-slate-500">SLA: 1–2 business days</span></>
-                    : <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11.5px] text-slate-600">{d.status}</span>}
-              </div>
-            ))}
+            <div className="p-5">
+              <CardHeader
+                title="KYB Documents"
+                sub={LIVE && verification.data ? `${docs.filter((d) => d.ok).length} of ${docs.length} verified — open any item to complete it` : 'Dynamic checklist scoped to institution type: CBN-Licensed Digital Lender'}
+              />
+            </div>
+            {LIVE && verification.data
+              ? verification.data.groups.map((g) => (
+                  <div key={g.name}>
+                    <div className="flex items-center gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{g.name}</span>
+                      <span className="text-[11px] text-slate-400">{g.done}/{g.total}</span>
+                    </div>
+                    {g.items.map((it) => {
+                      const open = openKey === it.key;
+                      const ok = it.status === 'verified';
+                      const inReview = it.status === 'in_review';
+                      const needsAction = it.status === 'action_needed';
+                      return (
+                        <div key={it.key}>
+                          <button
+                            onClick={() => setOpenKey(open ? null : it.key)}
+                            aria-expanded={open}
+                            className={cn('flex w-full flex-wrap items-center gap-4 border-t border-slate-100 px-5 py-3.5 text-left hover:bg-slate-50/70', open && 'bg-indigo-50/40')}
+                          >
+                            <IconTile icon={ok ? Check : Clock} size="sm" className={cn('h-9 w-9', ok ? 'bg-emerald-50 text-emerald-600' : needsAction ? 'bg-rose-50 text-rose-500' : 'bg-amber-50 text-amber-600')} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[13.5px] font-medium text-slate-900">{it.title}</span>
+                                {it.required_for === 'optional' && (
+                                  <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">Optional</span>
+                                )}
+                              </div>
+                              <div className="text-[12px] text-slate-500">{it.subtitle || it.why}</div>
+                            </div>
+                            {ok
+                              ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11.5px] font-medium text-emerald-700"><Check className="h-3 w-3" />Verified</span>
+                              : inReview
+                                ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11.5px] font-medium text-amber-700"><Hourglass className="h-3 w-3" />In Review</span>
+                                : needsAction
+                                  ? <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11.5px] font-medium text-rose-600"><AlertCircle className="h-3 w-3" />Action needed</span>
+                                  : <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11.5px] text-slate-600">{it.status === 'expiring' ? 'Expiring' : it.status === 'in_progress' ? 'In progress' : 'Not started'}</span>}
+                            <span className="inline-flex items-center gap-1 text-[12.5px] font-medium text-indigo-600">
+                              {it.action_label}{open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            </span>
+                          </button>
+                          {open && <KybItemPanel itemKey={it.key} onClose={() => setOpenKey(null)} onChanged={refreshCompliance} />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))
+              : KYB_DOCS.map((d) => (
+                  <div key={d.name} className="flex flex-wrap items-center gap-4 border-t border-slate-100 px-5 py-3.5">
+                    <IconTile icon={d.ok ? Check : Clock} size="sm" className={cn('h-9 w-9', d.ok ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13.5px] font-medium text-slate-900">{d.name}</div>
+                      <div className="text-[12px] text-slate-500">{d.why || (d.date ? `Uploaded ${d.date}` : 'Awaiting submission')}</div>
+                    </div>
+                    {d.ok
+                      ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11.5px] font-medium text-emerald-700"><Check className="h-3 w-3" />Verified</span>
+                      : d.status === 'In Review'
+                        ? <><span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11.5px] font-medium text-amber-700"><Hourglass className="h-3 w-3" />In Review</span><span className="text-[12px] text-slate-500">SLA: 1–2 business days</span></>
+                        : <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11.5px] text-slate-600">{d.status}</span>}
+                  </div>
+                ))}
           </Card>
         </>
       )}

@@ -84,6 +84,25 @@ export function DecisionBadge({ decision, className }) {
   return <span className={cn('inline-flex items-center rounded-md border px-2 py-0.5 text-[11.5px] font-medium', DECISION[decision], className)}>{decision}</span>;
 }
 
+// ScoreOutcome is engine *coverage*, not score quality: a MINIMAL score from one
+// engine can still be a good score. Kept visually distinct from the tier badge so
+// "MINIMAL" is never read as "bad".
+const OUTCOME = {
+  FULL: { tone: 'emerald', engines: '3 engines' },
+  DEGRADED: { tone: 'amber', engines: '2 engines' },
+  MINIMAL: { tone: 'orange', engines: '1 engine' },
+  NO_SCORE: { tone: 'rose', engines: 'no engines' },
+};
+export function OutcomeBadge({ outcome, className }) {
+  const o = OUTCOME[outcome];
+  if (!o) return <Pill tone="slate" className={className}>{outcome || 'No outcome'}</Pill>;
+  return (
+    <Pill tone={o.tone} dot className={cn('cursor-help', className)}>
+      <span title="Engine coverage, not score quality">{outcome} · {o.engines}</span>
+    </Pill>
+  );
+}
+
 export function Avatar({ name, className, gradient }) {
   const ini = name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
   return (

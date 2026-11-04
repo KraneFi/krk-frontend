@@ -364,7 +364,7 @@ export function makeCheck(rng, opts) {
   };
 
   const report = {
-    id, name, bvn, phone: `+234 80${rng.int(2, 9)} ••• ${bvn}`, signal, score, risk, debt, tier, decision, confidence, policy: 'v4.2', label,
+    id, name, bvn, phone: `+234 80${rng.int(2, 9)} ••• ${bvn}`, signal, score, risk, debt, tier, decision, confidence, policy: 'v4.2', label, outcome: label,
     mobiKey, mobiCode: mobi.code,
     engines: {
       bs360: { weight: mobi.available ? '45% weight' : '70% (redistributed)', redistributed: !mobi.available, source: `Item-linked auto-pull (${accounts} account${accounts > 1 ? 's' : ''})`, score: bs },

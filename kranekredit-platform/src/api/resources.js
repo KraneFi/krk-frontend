@@ -21,10 +21,28 @@ export const kyb = {
   verification: () => api.get('/orgs/current/verification'),
   history: () => api.get('/orgs/current/verification/history'),
   create: (displayName) => api.post('/orgs', { display_name: displayName }),
+
+  // One verification item, including its change history.
+  item: (key) => api.get(`/orgs/current/verification/${key}`),
+  saveDraft: (key, fields) => api.put(`/orgs/current/verification/${key}/draft`, { fields }),
+  uploadDocument: (key, file) => api.upload(`/orgs/current/verification/${key}/documents`, file),
+  submitItem: (key, body = {}) => api.post(`/orgs/current/verification/${key}/submit`, body),
+
+  directors: {
+    send: (name, email) => api.post('/orgs/current/directors/links', { name, email }),
+    resend: (linkId) => api.post(`/orgs/current/directors/links/${linkId}/resend`),
+    revoke: (linkId) => api.del(`/orgs/current/directors/links/${linkId}`),
+  },
 }
 
 export const account = {
   pendingAgreements: () => api.get('/me/agreements/pending'),
+
+  // Phone and TOTP are what the KYB "phone"/"twofa" items derive their status from.
+  sendPhoneCode: (phone) => api.post('/auth/phone/send-code', { phone }),
+  verifyPhone: (code) => api.post('/auth/phone/verify', { code }),
+  totpSetup: () => api.post('/auth/mfa/totp/setup'),
+  totpEnable: (code) => api.post('/auth/mfa/totp/enable', { code }),
 }
 
 export const tenant = {
