@@ -217,7 +217,7 @@ curl ${API_BASE}/api/v1/team/members \\
 
       {tab === 'webhooks' && (
         LIVE
-          ? <NotWired title="Webhooks require a tenant API key" reason="GET /webhooks/endpoints and the delivery history are guarded by X-API-Key, not by the user session. Exposing a tenant key in the browser is not acceptable, so this tab needs the thin BFF before it can be wired." />
+          ? <NotWired title="Webhooks require a tenant API key" reason="GET /webhooks/endpoints and the delivery history are guarded by X-API-Key, not by the user session. The console mints a session key for scoring only (kept in sessionStorage); this tab still needs the thin BFF before it can be wired." />
           : (
             <div className="space-y-5">
               <Card className="overflow-hidden">

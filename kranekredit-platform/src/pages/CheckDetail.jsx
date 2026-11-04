@@ -7,6 +7,8 @@ import { Card, CardHeader, TierBadge, DecisionBadge, OutcomeBadge, Pill, Section
 import { useData } from '../data/DataContext.jsx';
 import { Link, useApp } from '../router.jsx';
 import DeepAnalysis from '../deep/DeepAnalysis.jsx';
+import { LIVE } from '../config.js';
+import CheckDetailLive from './CheckDetailLive.jsx';
 
 function Metric({ label, value, sub }) {
   return (
@@ -31,7 +33,7 @@ function Ring({ value, tone }) {
   );
 }
 
-export default function CheckDetail({ id }) {
+function MockCheckDetail({ id }) {
   const { REPORTS, CHECKS } = useData();
   const r = REPORTS[id] || REPORTS[CHECKS[0].id];
   const { notify, navigate } = useApp();
@@ -368,4 +370,8 @@ export default function CheckDetail({ id }) {
       {deep && <DeepAnalysis report={r} initial={deep} onClose={() => setDeep(null)} />}
     </div>
   );
+}
+
+export default function CheckDetail(props) {
+  return LIVE ? <CheckDetailLive {...props} /> : <MockCheckDetail {...props} />;
 }

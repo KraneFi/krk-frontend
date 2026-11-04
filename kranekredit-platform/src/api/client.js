@@ -107,10 +107,11 @@ export const api = {
   put: (path, body, opts) => send(path, { ...opts, method: 'PUT', body }),
   patch: (path, body, opts) => send(path, { ...opts, method: 'PATCH', body }),
   del: (path, opts) => send(path, { ...opts, method: 'DELETE' }),
-  upload: (path, file) => {
+  upload: (path, file, { fields = {}, query = '' } = {}) => {
     const form = new FormData()
     form.append('file', file)
-    return send(path, { method: 'POST', body: form })
+    for (const [k, v] of Object.entries(fields)) form.append(k, String(v))
+    return send(`${path}${query}`, { method: 'POST', body: form })
   },
 }
 

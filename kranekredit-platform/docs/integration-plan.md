@@ -431,7 +431,7 @@ Live against local `staging`, verified in a headless browser (not just compiled)
 | `src/api/auth.js` | login **with MFA branch** (`mfa_required` → `/auth/login/mfa`), signup, logout, session restore on boot |
 | `src/pages/Login.jsx` | login + MFA challenge screen |
 | `src/App.jsx` | auth gate — live mode requires a session, mock mode stays open |
-| `src/components/Layout.jsx` | real user + role in the sidebar, sign-out |
+| `src/components/Layout.jsx` | real user + role in the sidebar, sign-out; the access-tier chip reads `GET /orgs/current/access` ("Tier 1 — Sandbox") instead of the hardcoded "Tier 2 — Live" |
 | **Users** | live from `GET /team/members` |
 | **Compliance** | live from `GET /orgs/current/access` + `GET /orgs/current/verification`; every checklist item opens a working panel (see below) |
 | **API & Docs** | API Keys live from `/tenants/{id}/keys` (list, create with one-time `raw_key`, revoke); Reference Docs generated from the running `/openapi.json`. Webhooks / Logs / Connections show explicit "not wired" notices instead of invented data |
@@ -463,6 +463,41 @@ from a console-SMS code, TOTP enabled from a computed code — access moved **Le
 (`FULL`/`DEGRADED`/`MINIMAL`/`NO_SCORE`) as *engine coverage* ("MINIMAL · 1 engine"), kept
 visually separate from the tier badge so a single-engine score is not read as a bad score.
 
-**Still mock:** Checks, Check Detail (report body), Dashboard, Decision Engine, Loan Queue,
-Servicing, Users → Approvals/Audit tabs, Compliance → Lineage/Retention/Export tabs.
+**Still mock:** Dashboard, Decision Engine, Loan Queue, Servicing, Users → Approvals/Audit
+tabs, Compliance → Lineage/Retention/Export tabs. Checks / New Check / Check Detail use the
+real pipeline in live mode (see §15) and the generated dataset in mock mode.
 **Deliberately blank (no endpoint):** API & Docs → Webhooks / Logs / Connections.
+
+## 15. Checks pipeline — real scores in the console (2026-11-04)
+
+`New Check` → `Checks` → `Check Detail` now run the real Main Thinker engine in live mode.
+
+| Step | Call | Auth |
+|---|---|---|
+| Seed a demo profile | `POST /demo/seed-sample` | JWT |
+| Create a borrower | `POST /identity/individuals` | `X-API-Key` |
+| Upload statement / credit report | `POST /bank-statements/upload`, `POST /credit-reports/upload` | JWT (+ form fields) |
+| Poll extraction | `GET /bank-statements/{id}`, `GET /credit-reports/{id}` | JWT |
+| Analyse the statement | `POST /bank-statements/analyse` | JWT |
+| Composite score | `POST /scores/composite/from-sources` | `X-API-Key` |
+
+Two design constraints shaped this:
+
+1. **`/scores/*` is `X-API-Key` only — there is no session-authenticated scoring route.**
+   The console therefore mints its own sandbox key on first use
+   (`POST /tenants/{id}/keys`), keeps the one-time `raw_key` in `sessionStorage`, and
+   never bakes one into the bundle. It dies with the tab and is revocable from API & Docs.
+   A production build should proxy scoring server-side instead.
+2. **There is no tenant-wide checks list.** The console keeps the checks it created in
+   `localStorage` (`kk-checks:<tenant_id>`, capped at 200) and the page says so explicitly.
+   The re-score action reuses the stored analysis/report ids, because auto-discovery cannot
+   see rows written by the demo seeder.
+
+**Verified (headless):** sample profile → `KRK-770-R2-D2-T4`, `DEGRADED · 2 engines`,
+contributions **62.5% / 37.5%** (the engine's real redistribution), reason codes rendered;
+re-score preserved the signal. Upload mode is wired and fails honestly when extraction cannot
+read the file (the local fixture PDFs are placeholders and extraction needs a real statement).
+
+**Still missing for this page to be complete:** `GET /scores/composites` (tenant-wide,
+paginated), a server-side decision field (`recommendation` is AI text, `outcome` is engine
+coverage), and `direction`/`severity` vocabularies documented as an enum.

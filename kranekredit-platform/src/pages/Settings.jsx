@@ -138,7 +138,7 @@ export default function Settings() {
       )}
 
       {sec === 'billing' && (LIVE
-        ? <NotWired title="Billing requires a tenant API key" reason="GET /billing/usage and /billing/invoices are guarded by X-API-Key, not the user session. This needs the thin BFF before it can be shown — the plan and usage figures you saw before were invented." />
+        ? <NotWired title="Billing requires a tenant API key" reason="GET /billing/usage and /billing/invoices are guarded by X-API-Key, not the user session. The console mints a session key for scoring only (kept in sessionStorage), so this needs the thin BFF before it can be shown — the plan and usage figures you saw before were invented." />
         : (
           <Card className="h-fit p-6">
             <CardHeader title="Billing & Plan" sub="Manage your subscription and usage" />

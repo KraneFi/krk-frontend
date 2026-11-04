@@ -6,6 +6,8 @@ import {
 import { useData } from '../data/DataContext.jsx';
 import { useApp } from '../router.jsx';
 import { useSession, logout } from '../api/auth.js';
+import { kyb } from '../api/resources.js';
+import { useApi } from '../api/useApi.js';
 import { LIVE } from '../config.js';
 import { cn } from './ui.jsx';
 
@@ -46,6 +48,13 @@ export const PAGE_META = {
 function Sidebar({ open, onClose }) {
   const { path, navigate } = useApp();
   const session = useSession();
+  const access = useApi(() => kyb.access(), [], { enabled: LIVE });
+  const level = access.data?.level;
+  const tierText = LIVE && access.data ? `Tier ${level} — ${access.data.label}` : 'Tier 2 — Live';
+  const tierTone = level >= 2 ? 'emerald' : 'amber';
+  const tierSub = LIVE && access.data
+    ? (access.data.next_label ? `Next: ${access.data.next_label} (${access.data.progress.done}/${access.data.progress.total})` : 'Full live access granted')
+    : 'Restricted live access — manual-review floor enforced';
   const isActive = (to) => (to === '/' ? path === '/' : path === to || path.startsWith(to + '/'));
   return (
     <aside
@@ -71,11 +80,11 @@ function Sidebar({ open, onClose }) {
       <div className="mx-4 rounded-xl border border-white/10 bg-sidebar-surface px-3 py-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">Access Tier</span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10.5px] font-semibold text-amber-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />Tier 2 — Live
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${tierTone === 'emerald' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${tierTone === 'emerald' ? 'bg-emerald-400' : 'bg-amber-400'}`} />{tierText}
           </span>
         </div>
-        <p className="mt-1.5 text-[11.5px] leading-snug text-slate-400">Restricted live access — manual-review floor enforced</p>
+        <p className="mt-1.5 text-[11.5px] leading-snug text-slate-400">{tierSub}</p>
       </div>
 
       <nav className="mt-4 flex-1 space-y-5 overflow-y-auto px-3 pb-4">
