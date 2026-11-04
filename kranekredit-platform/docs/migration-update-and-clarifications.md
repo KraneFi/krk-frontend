@@ -164,11 +164,11 @@ non-production only, so we don't build a flow that 404s in staging/prod.
 
 | # | Ask | Owner |
 |---|---|---|
-| 1 | Decide score/tier scale (300–900/T0–T5 vs 0–1000/T1–T6) | Backend + UI |
+| 1 | ~~Decide score/tier scale~~ — **resolved 2026-11-04: 0–1000 / T1–T6 / D0–D5 adopted in the UI** | Backend + UI |
 | 2 | Decide where the approve/decline/refer decision comes from | Backend |
-| 3 | Agree on a tenant-wide composites list endpoint | Backend |
-| 4 | Confirm 62.5/37.5 degraded weights | Backend |
-| 5 | Confirm `outcome` semantics for the UI badge | Backend + UI |
+| 3 | Agree on a tenant-wide composites list endpoint. The console currently indexes the checks it created in `localStorage` and says so on screen | Backend |
+| 4 | ~~Confirm 62.5/37.5 degraded weights~~ — **observed in a live response: 0.625 / 0.375** | Backend |
+| 5 | ~~Confirm `outcome` semantics~~ — **resolved: engine coverage, shown as “DEGRADED · 2 engines”, never as score quality** | Backend + UI |
 | 6 | Publish canonical `direction` / `severity` values | Backend |
 | 7 | Confirm whether statement integrity is in the composite | Backend |
 | 8 | Confirm auth model for a console user (JWT everywhere vs BFF) | Backend |
