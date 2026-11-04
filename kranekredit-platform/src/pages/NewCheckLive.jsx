@@ -25,7 +25,7 @@ const BUREAUS = [['first_central', 'FirstCentral'], ['crc', 'CRC'], ['credit_reg
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function waitForExtraction(get, tries = 40) {
+async function waitForExtraction(get, tries = 20) {
   for (let i = 0; i < tries; i += 1) {
     const doc = await get();
     const status = String(doc.ingestion_status || doc.extract_status || '').toLowerCase();
@@ -33,7 +33,7 @@ async function waitForExtraction(get, tries = 40) {
     if (status === 'failed') throw new Error('Document extraction failed — check the file and try again.');
     await sleep(3000);
   }
-  throw new Error('Extraction is still running. Try again in a minute.');
+  throw new Error('Extraction has not completed after a minute. The API keeps the document at `pending` until the worker finishes — check again shortly, or try a different file.');
 }
 
 export default function NewCheckLive() {

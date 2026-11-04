@@ -60,7 +60,7 @@ async function scored(path, { method = 'GET', body } = {}) {
 }
 
 export const identity = {
-  create: (body) => api.post('/identity/individuals', body),
+  create: (body) => scored('/identity/individuals', { method: 'POST', body }),
 }
 
 export const bankStatements = {

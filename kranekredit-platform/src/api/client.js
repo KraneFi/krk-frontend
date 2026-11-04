@@ -54,7 +54,9 @@ function toError(status, body) {
     return new ApiError(status, e.code, e.detail, e.request_id)
   }
   if (body && typeof body === 'object' && body.detail) {
-    const detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
+    const detail = Array.isArray(body.detail)
+      ? body.detail.map((d) => d?.msg || d?.detail || JSON.stringify(d)).join('; ')
+      : typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
     return new ApiError(status, null, detail)
   }
   return new ApiError(status, null, typeof body === 'string' ? body : null)
