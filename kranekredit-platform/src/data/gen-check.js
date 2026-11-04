@@ -6,7 +6,8 @@ import { clamp, round, naira, nairaShort, fmtDate, fmtTime, fmtTimeSec, minutesA
 import { BANKS, EMPLOYERS, LENDERS, GATEWAY_NARRATIONS, PERSONAS, FIRST, LAST } from './pools.js';
 import { PRODUCT_CATALOG } from './catalog.js';
 
-export const TIER_RANGES = { T0: [300, 449], T1: [450, 549], T2: [550, 649], T3: [650, 749], T4: [750, 799], T5: [800, 900] };
+// Backend scale: score 0-1000, tiers T1-T6 (MainThinkerEngine._tier_code).
+export const TIER_RANGES = { T1: [0, 499], T2: [500, 599], T3: [600, 699], T4: [700, 799], T5: [800, 899], T6: [900, 1000] };
 export const tierOf = (s) => Object.keys(TIER_RANGES).find((t) => s >= TIER_RANGES[t][0] && s <= TIER_RANGES[t][1]);
 const tierRank = (t) => +t.slice(1);
 
@@ -37,10 +38,10 @@ export function makeCheck(rng, opts) {
   const created = minutesAgo(now, minsAgo);
 
   // ---- Core facts ----------------------------------------------------------
-  const tier = opts.tier || rng.weighted([['T0', 8], ['T1', 15], ['T2', 24], ['T3', 28], ['T4', 17], ['T5', 8]]);
+  const tier = opts.tier || rng.weighted([['T1', 18], ['T2', 24], ['T3', 28], ['T4', 17], ['T5', 10], ['T6', 3]]);
   const [lo, hi] = TIER_RANGES[tier];
   const score = rng.int(lo, hi);
-  const q = (score - 300) / 600; // 0..1 quality
+  const q = score / 1000; // 0..1 quality
   const mobiKey = mobiStatus || rng.weighted([['Connected', 76], ['Not available on this channel', 14], ['Temporarily unavailable', 5], ['Low confidence', 5]]);
   const mobi = MOBI_STATES[mobiKey];
   const integrity = rng.weighted([['Clear', 80], ['Review', 13], ['High Risk', 7]]);
@@ -51,8 +52,10 @@ export function makeCheck(rng, opts) {
   const dti = Math.round(clamp(62 - q * 48 + rng.float(-9, 9), 6, 74));
   const conflict = rng.chance(0.1);
   const confidence = mobi.available ? (mobi.lowConf ? rng.int(70, 78) : rng.int(80, 92)) : rng.int(58, 70);
-  const risk = score >= 780 ? 'R1' : score >= 680 ? 'R2' : score >= 560 ? 'R3' : score >= 450 ? 'R4' : 'R5';
-  const debt = dti < 15 ? 'D1' : dti < 25 ? 'D2' : dti < 35 ? 'D3' : dti < 45 ? 'D4' : 'D5';
+  // Mirrors MainThinkerEngine._risk_code (computed from score/10).
+  const risk = score >= 800 ? 'R1' : score >= 650 ? 'R2' : score >= 500 ? 'R3' : score >= 350 ? 'R4' : 'R5';
+  // Mirrors MainThinkerEngine._debt_code, including D0 for zero/unavailable DTI.
+  const debt = dti <= 0 ? 'D0' : dti <= 10 ? 'D1' : dti <= 30 ? 'D2' : dti <= 45 ? 'D3' : dti <= 60 ? 'D4' : 'D5';
   const signal = `KRK-${score}-${risk}-${debt}-${tier}`;
   const label = mobi.label;
   const employer = rng.pick(EMPLOYERS);
@@ -65,11 +68,11 @@ export function makeCheck(rng, opts) {
 
   // ---- Decision (policy v4.2, first match wins) ----------------------------
   let decision; let rule;
-  if (tierRank(tier) >= 3 && dti <= 35 && integrity === 'Clear' && !conflict) { decision = 'Auto-Approve'; rule = 'r1'; }
-  else if (tier === 'T0') { decision = 'Auto-Decline'; rule = 'r2'; }
+  if (score >= 600 && dti <= 35 && integrity === 'Clear' && !conflict) { decision = 'Auto-Approve'; rule = 'r1'; }
+  else if (score < 450) { decision = 'Auto-Decline'; rule = 'r2'; }
   else if (integrity === 'High Risk' || conflict) { decision = 'Refer'; rule = 'r3'; }
-  else if (tier === 'T1' && dti > 40) { decision = 'Refer'; rule = 'r4'; }
-  else if (tier === 'T5' && confidence >= 80 && integrity === 'Clear') { decision = 'Auto-Approve'; rule = 'r5'; }
+  else if (score < 550 && dti > 40) { decision = 'Refer'; rule = 'r4'; }
+  else if (score >= 900 && confidence >= 80 && integrity === 'Clear') { decision = 'Auto-Approve'; rule = 'r5'; }
   else if (dti > 50) { decision = 'Auto-Decline'; rule = 'default'; }
   else { decision = 'Manual Review'; rule = 'floor'; }
   const needsHuman = decision === 'Manual Review' || decision === 'Refer';

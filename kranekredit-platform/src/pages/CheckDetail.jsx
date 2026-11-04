@@ -70,9 +70,9 @@ export default function CheckDetail({ id }) {
             </div>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
-            <Metric label="KRK Score" value={r.score} sub="300–900 range" />
+            <Metric label="KRK Score" value={r.score} sub="0–1000 scale" />
             <Metric label="Risk Code" value={r.risk} sub="R1–R5 scale" />
-            <Metric label="Debt Code" value={r.debt} sub="D1–D5 scale" />
+            <Metric label="Debt Code" value={r.debt} sub="D0–D5 scale" />
             <Metric label="Confidence" value={`${r.confidence}%`} sub="Engine availability" />
             <Metric label="Policy" value={r.policy} sub="Decision version" />
           </div>

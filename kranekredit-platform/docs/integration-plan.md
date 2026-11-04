@@ -18,14 +18,14 @@ milestone list with an executable phase plan keyed to the locked decisions.
 |---|---|---|
 | 1 | How the frontend reaches the backend | **Thin BFF / proxy** — credentials stay server-side, responses shaped into the frontend's existing model |
 | 2 | Modules the backend lacks (Decision Engine, Loan Queue, Servicing) | **Mock now, build later** — keep seeded mock behind a flag, mark pages "not yet wired" |
-| 3 | Canonical score/tier scale | **Map in the adapter** — backend stays 0–1000 / T1–T6; BFF remaps to the frontend's 300–900 / T0–T5 |
+| 3 | Canonical score/tier scale | **Backend scale adopted in the UI** (revised 2026-11-04) — 0–1000, T1–T6, D0–D5. No client-side remap: `tier_code` is computed server-side from the 0–1000 score, so rescaling would display a tier that contradicts it (a real 745 is T4, while a 300–900 remap calls it T3) |
 | 4 | This document | Saved to `/Users/zedd/.opencode/plan/` |
 
-**Correction to decision 3:** the backend scale is **0–1000**, and `TIER_RANGES` in the
-frontend assume a 300–900 scale. Remapping 0–1000 → 300–900 is *lossy and monotonic*;
-it will also produce out-of-range values for scores below 300 (`MINIMAL`/`NO_SCORE`
-outcomes can be `KRK-0-…`). Two options, both acceptable: clamp+map (`300 + score×0.6`),
-or keep 0–1000 and change only the UI copy. **This needs a call before Phase 1.**
+**Resolved (2026-11-04):** the UI now speaks the backend's language — score 0–1000,
+tiers **T1–T6** (no T0), debt **D0–D5**, and risk codes computed from `score/10` exactly as
+`MainThinkerEngine` does. The mock generator was migrated at the same time so mock and live
+data cannot disagree. `confidence` stays a percentage in the UI and must be multiplied by
+100 when a live composite is wired.
 
 ---
 
@@ -444,6 +444,11 @@ org member, so the console needs a lender account.
 
 `VITE_DATA_MODE` still defaults to `live`; set it to `mock` to get the original generated
 dataset back with no API at all. `VITE_API_BASE` switches between local and Render.
+
+**Vocabulary migration (2026-11-04):** score scale 0–1000, tiers T1–T6, debt D0–D5 and
+risk R1–R5 now match the backend in both mock and live paths (`src/data/core.js`,
+`gen-check.js`, `ui.jsx`). Verified: Dashboard shows a T1–T6 distribution, Check Detail
+renders `KRK-850-R1-D2-T5` with a "0–1000 scale" label.
 
 **Still mock:** Checks, Check Detail, Dashboard, Decision Engine, Loan Queue, Servicing,
 Users → Approvals/Audit tabs, Compliance → Lineage/Retention/Export tabs.

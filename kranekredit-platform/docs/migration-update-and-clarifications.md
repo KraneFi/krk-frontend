@@ -73,13 +73,12 @@ not process. WIP from `feat/sdk-worker-staging` is in `git stash@{0}`.
 
 ### Blocking (can't build Checks or Dashboard without these)
 
-**1. Score and tier scale.** UI is built around a **300–900** score and tiers
-**T0–T5**. The API returns **0–1000** and **T1–T6** (no T0), and debt codes start at
-**D0**. Which is canonical?
-- Option A: API stays 0–1000/T1–T6, we remap in an adapter (lossy at the bottom — `KRK-0-…`
-  is possible for `MINIMAL`/`NO_SCORE`).
-- Option B: UI changes to 0–1000/T1–T6 and we update the tier badges and copy.
-- **We need a decision, not a guess** — the numbers on screen are wrong either way.
+**1. Score and tier scale.** ✅ **Resolved 2026-11-04 — the API is canonical.** The UI now
+uses **0–1000**, tiers **T1–T6** (no T0) and debt **D0–D5**. No client-side remap: a real
+score of 745 is T4 server-side, while a 300–900 remap would have labelled it T3.
+- ~~Option A: remap in an adapter~~ — rejected: `tier_code` is computed from the 0–1000 score,
+  so a rescale contradicts the server's own tier.
+- ~~Option B: UI changes to 0–1000/T1–T6~~ — **chosen and implemented.**
 
 **2. Is there an approve / decline / refer decision anywhere?** This is the biggest one.
 `CompositeScoreResponse.outcome` is **not** a credit decision — it's engine availability
