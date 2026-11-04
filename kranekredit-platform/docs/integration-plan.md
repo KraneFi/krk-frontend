@@ -435,6 +435,7 @@ Live against local `staging`, verified in a headless browser (not just compiled)
 | **Users** | live from `GET /team/members` |
 | **Compliance** | live from `GET /orgs/current/access` + `GET /orgs/current/verification` |
 | **API & Docs** | API Keys live from `/tenants/{id}/keys` (list, create with one-time `raw_key`, revoke); Reference Docs generated from the running `/openapi.json`. Webhooks / Logs / Connections show explicit "not wired" notices instead of invented data |
+| **Settings** | Company profile live from `GET/PATCH /orgs/current` (editable: display name, website, support phone; legal fields read-only because they require a review request); Billing shows a "needs BFF" notice |
 
 **Console bootstrap verified end-to-end:** `POST /auth/signup` (lender) → `POST
 /auth/email/send-code` → `/auth/email/verify` → `POST /orgs` → team + KYB both 200.

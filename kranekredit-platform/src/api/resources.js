@@ -16,6 +16,7 @@ export const team = {
 export const kyb = {
   /** 404 when the user has no organisation yet. */
   current: () => api.get('/orgs/current'),
+  update: (patch) => api.patch('/orgs/current', patch),
   access: () => api.get('/orgs/current/access'),
   verification: () => api.get('/orgs/current/verification'),
   history: () => api.get('/orgs/current/verification/history'),
