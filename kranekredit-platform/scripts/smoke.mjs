@@ -47,6 +47,24 @@ if (navLabel) {
   await sleep(2500)
 }
 
+// Click any button/tab by its visible label, for second-level navigation.
+const clickLabel = arg('click')
+if (clickLabel) {
+  await send('Runtime.evaluate', {
+    expression: `(() => { const b = [...document.querySelectorAll('button, a')].find(x => x.textContent.trim() === ${JSON.stringify(clickLabel)}); if (b) b.click(); return !!b })()`,
+    returnByValue: true,
+  })
+  await sleep(2500)
+  const extra = arg('click2')
+  if (extra) {
+    await send('Runtime.evaluate', {
+      expression: `(() => { const b = [...document.querySelectorAll('button, a')].find(x => x.textContent.trim() === ${JSON.stringify(extra)}); if (b) b.click(); return !!b })()`,
+      returnByValue: true,
+    })
+    await sleep(3000)
+  }
+}
+
 const { result } = await send('Runtime.evaluate', {
   expression: `document.body.innerText.replace(/\\n{2,}/g, '\\n').slice(0, 1600)`,
   returnByValue: true,

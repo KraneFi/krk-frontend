@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // Runs an async loader and tracks loading/error state. Aborts state writes after
-// unmount so a slow response cannot resurrect a unmounted page.
+// unmount so a slow response cannot resurrect an unmounted page. `refetch`
+// re-runs the loader without changing the caller's dependencies.
 export function useApi(loader, deps = [], { enabled = true } = {}) {
   const [state, setState] = useState({ data: null, loading: enabled, error: null })
+  const [nonce, setNonce] = useState(0)
   const mounted = useRef(true)
+  const loaderRef = useRef(loader)
+  loaderRef.current = loader
 
   useEffect(() => {
     mounted.current = true
@@ -19,14 +23,15 @@ export function useApi(loader, deps = [], { enabled = true } = {}) {
     let alive = true
     setState((s) => ({ ...s, loading: true, error: null }))
     Promise.resolve()
-      .then(loader)
+      .then(() => loaderRef.current())
       .then((data) => { if (alive && mounted.current) setState({ data, loading: false, error: null }) })
       .catch((error) => { if (alive && mounted.current) setState({ data: null, loading: false, error }) })
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps)
+  }, [...deps, enabled, nonce])
 
-  return state
+  const refetch = useCallback(() => setNonce((n) => n + 1), [])
+  return { ...state, refetch }
 }
 
 // Friendly message for the errors this app actually hits.

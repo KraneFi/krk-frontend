@@ -25,3 +25,11 @@ export const kyb = {
 export const account = {
   pendingAgreements: () => api.get('/me/agreements/pending'),
 }
+
+export const tenant = {
+  get: (tenantId) => api.get(`/tenants/${tenantId}`),
+  keys: (tenantId) => api.get(`/tenants/${tenantId}/keys`),
+  createKey: (tenantId, label, environment = 'test') =>
+    api.post(`/tenants/${tenantId}/keys`, { label, environment }),
+  revokeKey: (tenantId, keyId) => api.del(`/tenants/${tenantId}/keys/${keyId}`),
+}

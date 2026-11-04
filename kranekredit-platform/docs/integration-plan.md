@@ -434,6 +434,7 @@ Live against local `staging`, verified in a headless browser (not just compiled)
 | `src/components/Layout.jsx` | real user + role in the sidebar, sign-out |
 | **Users** | live from `GET /team/members` |
 | **Compliance** | live from `GET /orgs/current/access` + `GET /orgs/current/verification` |
+| **API & Docs** | API Keys live from `/tenants/{id}/keys` (list, create with one-time `raw_key`, revoke); Reference Docs generated from the running `/openapi.json`. Webhooks / Logs / Connections show explicit "not wired" notices instead of invented data |
 
 **Console bootstrap verified end-to-end:** `POST /auth/signup` (lender) → `POST
 /auth/email/send-code` → `/auth/email/verify` → `POST /orgs` → team + KYB both 200.
@@ -444,4 +445,5 @@ org member, so the console needs a lender account.
 dataset back with no API at all. `VITE_API_BASE` switches between local and Render.
 
 **Still mock:** Checks, Check Detail, Dashboard, Decision Engine, Loan Queue, Servicing,
-API & Docs, Users → Approvals/Audit tabs, Compliance → Lineage/Retention/Export tabs.
+Users → Approvals/Audit tabs, Compliance → Lineage/Retention/Export tabs.
+**Deliberately blank (no endpoint):** API & Docs → Webhooks / Logs / Connections.
