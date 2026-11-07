@@ -464,9 +464,10 @@ from a console-SMS code, TOTP enabled from a computed code — access moved **Le
 visually separate from the tier badge so a single-engine score is not read as a bad score.
 
 **Still mock:** Dashboard, Decision Engine, Loan Queue, Servicing, Users → Approvals/Audit
-tabs, Compliance → Lineage/Retention/Export tabs. Checks / New Check / Check Detail use the
+tabs, Compliance → Retention/Export tabs. Checks / New Check / Check Detail use the
 real pipeline in live mode (see §15) and the generated dataset in mock mode.
-**Deliberately blank (no endpoint):** API & Docs → Webhooks / Logs / Connections.
+**Deliberately blank (no endpoint):** API & Docs → Logs / Connections. Webhooks and Billing
+were wired later — see §16.
 
 ## 15. Checks pipeline — real scores in the console (2026-11-04)
 
@@ -501,3 +502,42 @@ read the file (the local fixture PDFs are placeholders and extraction needs a re
 **Still missing for this page to be complete:** `GET /scores/composites` (tenant-wide,
 paginated), a server-side decision field (`recommendation` is AI text, `outcome` is engine
 coverage), and `direction`/`severity` vocabularies documented as an enum.
+
+## 16. Second audit — the six remaining wireable surfaces (2026-11-07)
+
+A full OpenAPI-vs-console diff found several stale "not wired" notices. The earlier audit
+predated the per-browser session key (`sessionStorage`, introduced for scoring), which makes
+every `X-API-Key` route callable from the console — the notices were never re-checked against
+that new capability.
+
+| Surface | Endpoint(s) | State |
+|---|---|---|
+| Legal agreements gate | `GET /me/agreements/pending`, `POST /legal/acceptances` | `AgreementGate` blocks the console until every current document is accepted; acceptance is recorded with IP/user-agent. Fails open on transport errors so a broken route cannot lock everyone out |
+| Settings → Billing | `GET /billing/usage`, `GET /billing/invoices` | live; invoices render, usage currently fails server-side (see below) |
+| Users → Invites | `GET/POST /team/invites`, resend, revoke | live; admin-only, with pending/expired invites |
+| Compliance → Data Lineage | `GET /orgs/current/verification/history` | live verification timeline |
+| Check Detail → AI advice | `POST /ai/advice` | wired; reaches the API, returns `LLM_PROVIDER_ERROR` because the deployment's `LLM_API_KEY` is a placeholder |
+| API & Docs → Webhooks | `GET/POST/DELETE /webhooks/endpoints`, `GET .../deliveries` | live; endpoint CRUD, one-time signing secret, delivery history; event picker mirrors the backend `EventType` catalog |
+
+**Shared auth:** billing, webhooks and AI reuse the same per-browser session key as scoring
+(`keyedForTenant` in `src/api/scoring.js`). No key in the bundle; it dies with the tab and is
+revocable from API & Docs.
+
+**Backend finding — billing usage 500:** `usage_records.created_at` is
+`timestamp without time zone` (naive `BaseMixin`) while `UsageRecordRepository` passes aware
+UTC datetimes, so asyncpg raises `can't subtract offset-naive and offset-aware datetimes`.
+Because it is an *unhandled* exception, Starlette's `ServerErrorMiddleware` returns the 500
+outside the CORS middleware, so browsers see `TypeError: Failed to fetch` instead of a status.
+The Billing UI reports that precisely. BE fix: compare/store naive UTC, or make the column
+timezone-aware.
+
+**Still correctly dark (no endpoint):** Dashboard, Decision Engine, Loan Queue, Servicing,
+request Logs (purge cron only), team Approvals, admin Krane-only surfaces. Connection Items
+still has no items resource.
+
+**Verified end-to-end (headless, local live API):** the agreements gate displayed 3 pending
+documents and acceptance cleared them; Billing showed the usage failure and an empty invoice
+list; an invite created through the UI appeared as pending and revoke returned the API list to
+`[]`; KYB history rendered real entries; AI advice surfaced `LLM_PROVIDER_ERROR` with its
+request id; webhook create showed the one-time secret, the deliveries panel loaded (empty), and
+delete removed the endpoint and cleared the secret.
