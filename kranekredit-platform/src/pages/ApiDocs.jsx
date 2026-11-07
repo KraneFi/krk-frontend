@@ -1,12 +1,33 @@
 import { useState } from 'react';
-import { Activity, KeyRound, Link2, Webhook, ScrollText, BookOpen, Plus, Copy, Check, X, AlertTriangle, RotateCcw, CheckCircle2, AlertCircle, Terminal, Server, Loader2, Info } from 'lucide-react';
+import { Activity, KeyRound, Link2, Webhook, ScrollText, BookOpen, Plus, Copy, Check, X, CheckCircle2, AlertCircle, Terminal, Server, Loader2, Info, Trash2 } from 'lucide-react';
 import { Card, CardHeader, PillTabs, IconTile, cn } from '../components/ui.jsx';
 import { useData } from '../data/DataContext.jsx';
 import { useApp } from '../router.jsx';
 import { tenant } from '../api/resources.js';
+import { webhooks } from '../api/webhooks.js';
 import { useApi, describeError } from '../api/useApi.js';
 import { useSession } from '../api/auth.js';
 import { LIVE, API_BASE } from '../config.js';
+
+// Mirrors src/modules/events/domain/enums.py on the backend. Kept as a
+// hardcoded catalog so the tab works without an extra discovery endpoint.
+const EVENT_GROUPS = {
+  Consent: ['consent.granted.v1', 'consent.declined.v1', 'consent.expired.v1', 'consent.revoked.v1'],
+  'Bank connections': ['item.created.v1', 'item.login_required.v1', 'item.revoked.v1'],
+  Checks: [
+    'check.created.v1', 'check.source.updated.v1', 'check.manual_upload_required.v1', 'check.completed.v1',
+    'check.requires_review.v1', 'check.review_resolved.v1', 'check.failed.v1', 'check.rescored.v1',
+  ],
+  Decisions: ['decision.overridden.v1'],
+  Offers: ['offer.sent.v1', 'offer.viewed.v1', 'offer.accepted.v1', 'offer.declined.v1', 'offer.expired.v1'],
+  Loans: [
+    'loan.disbursed.v1', 'loan.repayment.received.v1', 'loan.repayment.missed.v1',
+    'loan.dpd_bucket.changed.v1', 'loan.restructured.v1', 'loan.completed.v1', 'loan.defaulted.v1',
+  ],
+  'Organization and keys': ['org.access_level.changed.v1', 'org.verification_item.updated.v1', 'api_key.created.v1', 'api_key.revoked.v1'],
+  Billing: ['usage.threshold_reached.v1', 'invoice.created.v1', 'invoice.paid.v1', 'invoice.payment_failed.v1'],
+  Webhooks: ['webhook.test.v1'],
+};
 
 function CopyIcon({ text }) {
   const [done, setDone] = useState(false);
@@ -55,11 +76,19 @@ export default function ApiDocs() {
   const [tab, setTab] = useState('keys');
   const [freshKey, setFreshKey] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [whUrl, setWhUrl] = useState('');
+  const [whEvents, setWhEvents] = useState([]);
+  const [whCreating, setWhCreating] = useState(false);
+  const [whError, setWhError] = useState(null);
+  const [newSecret, setNewSecret] = useState(null);
+  const [deliveries, setDeliveries] = useState({});
 
   const tenantId = user?.tenant_id;
   const keys = useApi(() => tenant.keys(tenantId), [tenantId], { enabled: LIVE && Boolean(tenantId) });
   const org = useApi(() => tenant.get(tenantId), [tenantId], { enabled: LIVE && Boolean(tenantId) });
   const spec = useApi(() => fetch(OPENAPI_URL).then((r) => { if (!r.ok) throw new Error(`openapi ${r.status}`); return r.json(); }), [], { enabled: LIVE && tab === 'docs' });
+  const endpoints = useApi(() => webhooks.list(tenantId), [tenantId], { enabled: LIVE && tab === 'webhooks' && Boolean(tenantId) });
 
   const generate = async () => {
     setCreating(true);
@@ -82,6 +111,60 @@ export default function ApiDocs() {
       keys.refetch();
     } catch (err) {
       notify(describeError(err));
+    }
+  };
+
+  const toggleEvent = (event) => {
+    setWhEvents((prev) => (prev.includes(event) ? prev.filter((e) => e !== event) : [...prev, event]));
+  };
+
+  const createEndpoint = async (e) => {
+    e.preventDefault();
+    if (!tenantId) return;
+    setWhCreating(true);
+    setWhError(null);
+    try {
+      const created = await webhooks.create(tenantId, whUrl.trim(), whEvents);
+      setNewSecret(created.secret);
+      setWhUrl('');
+      setWhEvents([]);
+      setShowForm(false);
+      endpoints.refetch();
+      notify('Webhook endpoint created — copy the signing secret now');
+    } catch (err) {
+      setWhError(err);
+    } finally {
+      setWhCreating(false);
+    }
+  };
+
+  const removeEndpoint = async (endpoint) => {
+    try {
+      await webhooks.remove(tenantId, endpoint.id);
+      setNewSecret(null);
+      notify('Webhook endpoint removed');
+      endpoints.refetch();
+    } catch (err) {
+      notify(describeError(err));
+    }
+  };
+
+  const toggleDeliveries = async (endpoint) => {
+    const current = deliveries[endpoint.id];
+    if (current?.open) {
+      setDeliveries((prev) => ({ ...prev, [endpoint.id]: { ...current, open: false } }));
+      return;
+    }
+    if (current?.data) {
+      setDeliveries((prev) => ({ ...prev, [endpoint.id]: { ...current, open: true } }));
+      return;
+    }
+    setDeliveries((prev) => ({ ...prev, [endpoint.id]: { open: true, loading: true, error: null, data: null } }));
+    try {
+      const data = await webhooks.deliveries(tenantId, endpoint.id);
+      setDeliveries((prev) => ({ ...prev, [endpoint.id]: { open: true, loading: false, error: null, data } }));
+    } catch (err) {
+      setDeliveries((prev) => ({ ...prev, [endpoint.id]: { open: true, loading: false, error: err, data: null } }));
     }
   };
 
@@ -217,7 +300,148 @@ curl ${API_BASE}/api/v1/team/members \\
 
       {tab === 'webhooks' && (
         LIVE
-          ? <NotWired title="Webhooks require a tenant API key" reason="GET /webhooks/endpoints and the delivery history are guarded by X-API-Key, not by the user session. The console mints a session key for scoring only (kept in sessionStorage); this tab still needs the thin BFF before it can be wired." />
+          ? (
+            <div className="space-y-5">
+              <Card className="overflow-hidden">
+                <div className="p-5">
+                  <CardHeader
+                    title="Webhook Endpoints"
+                    sub="Signed (HMAC), versioned events. The signing secret is shown once at creation."
+                    right={<button onClick={() => { setShowForm((v) => !v); setWhError(null); }} disabled={!tenantId} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 text-[13px] font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                      {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{showForm ? 'Cancel' : 'New endpoint'}
+                    </button>}
+                  />
+                </div>
+
+                {!tenantId && (
+                  <div className="px-5 pb-5"><NotWired title="No tenant on this account" reason="Webhooks are scoped to a lender organisation. Create one under Compliance → KYB first." /></div>
+                )}
+
+                {showForm && tenantId && (
+                  <form onSubmit={createEndpoint} className="space-y-4 border-t border-slate-100 p-5">
+                    <label htmlFor="wh-url" className="block">
+                      <span className="text-[13px] font-medium text-slate-900">Endpoint URL</span>
+                      <input id="wh-url" type="url" required value={whUrl} onChange={(e) => setWhUrl(e.target.value)} placeholder="https://example.com/webhooks/krane"
+                        className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-[13px] focus:border-indigo-300 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10" />
+                      <span className="mt-1 block text-[11.5px] text-slate-400">Must be a public http(s) URL. Deliveries are signed with the secret you will see once.</span>
+                    </label>
+
+                    <div>
+                      <div className="text-[13px] font-medium text-slate-900">Events</div>
+                      <p className="mt-0.5 text-[11.5px] text-slate-400">Mirrors the backend event catalog. Select at least one.</p>
+                      <div className="mt-2 space-y-2">
+                        {Object.entries(EVENT_GROUPS).map(([group, events]) => {
+                          const count = events.filter((e) => whEvents.includes(e)).length;
+                          return (
+                            <details key={group} className="rounded-xl border border-slate-200" open={count > 0}>
+                              <summary className="cursor-pointer px-3 py-2 text-[12.5px] font-medium text-slate-700">
+                                {group} {count > 0 && <span className="ml-1 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10.5px] text-indigo-700">{count}</span>}
+                              </summary>
+                              <div className="flex flex-wrap gap-1.5 border-t border-slate-100 p-3">
+                                {events.map((event) => {
+                                  const on = whEvents.includes(event);
+                                  return (
+                                    <button key={event} type="button" onClick={() => toggleEvent(event)}
+                                      className={cn('rounded-full border px-2 py-1 font-mono text-[10.5px]', on ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50')}>
+                                      {event}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </details>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {whError && (
+                      <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-[12.5px] text-rose-700">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{describeError(whError)}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[11.5px] text-slate-400">{whEvents.length} event{whEvents.length === 1 ? '' : 's'} selected</span>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setShowForm(false)} className="inline-flex h-9 items-center rounded-lg border border-slate-200 px-3 text-[13px] font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
+                        <button type="submit" disabled={whCreating || !whEvents.length || !/^https?:\/\//i.test(whUrl.trim())} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 text-[13px] font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                          {whCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}Create endpoint
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                )}
+
+                {newSecret && (
+                  <div className="mx-5 mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="text-[12.5px] font-semibold text-emerald-800">Copy this signing secret now — it will not be shown again</div>
+                      <button onClick={() => setNewSecret(null)} aria-label="Dismiss" className="text-emerald-700 hover:text-emerald-900"><X className="h-3.5 w-3.5" /></button>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2 font-mono text-[12.5px] text-emerald-900"><span className="break-all">{newSecret}</span><CopyIcon text={newSecret} /></div>
+                  </div>
+                )}
+
+                {endpoints.loading && (
+                  <div className="flex items-center gap-3 border-t border-slate-100 px-5 py-4 text-[13px] text-slate-500"><Loader2 className="h-4 w-4 animate-spin text-indigo-500" />Loading endpoints…</div>
+                )}
+                {endpoints.error && (
+                  <div className="flex items-start gap-2 border-t border-slate-100 px-5 py-4 text-[13px] text-amber-800"><AlertCircle className="mt-0.5 h-4 w-4" />{describeError(endpoints.error)}</div>
+                )}
+                {tenantId && endpoints.data && !endpoints.data.length && !showForm && (
+                  <div className="border-t border-slate-100 px-5 py-8 text-center text-[13px] text-slate-500">No webhook endpoints yet — create one to receive signed events.</div>
+                )}
+
+                {endpoints.data?.map((endpoint) => {
+                  const delivery = deliveries[endpoint.id];
+                  return (
+                    <div key={endpoint.id} className="border-t border-slate-100">
+                      <div className="flex flex-wrap items-start gap-3 px-5 py-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="break-all font-mono text-[13px] text-slate-900">{endpoint.url}</div>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {endpoint.events.map((event) => <span key={event} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10.5px] text-slate-600">{event}</span>)}
+                          </div>
+                          <div className="mt-1.5 text-[11.5px] text-slate-400">Created {fmt(endpoint.created_at)} · status {endpoint.status}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => toggleDeliveries(endpoint)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[12.5px] font-medium text-slate-700 hover:bg-slate-50">
+                            <ScrollText className={cn('h-3.5 w-3.5', delivery?.loading && 'animate-pulse')} />Deliveries
+                          </button>
+                          <button onClick={() => removeEndpoint(endpoint)} aria-label="Delete endpoint" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </div>
+                      </div>
+
+                      {delivery?.open && (
+                        <div className="border-t border-slate-50 bg-slate-50/50 px-5 py-3">
+                          {delivery.loading && <div className="flex items-center gap-2 text-[12.5px] text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />Loading deliveries…</div>}
+                          {delivery.error && <div className="flex items-start gap-2 text-[12.5px] text-amber-800"><AlertCircle className="mt-0.5 h-3.5 w-3.5" />{describeError(delivery.error)}</div>}
+                          {delivery.data && !delivery.data.length && <div className="text-[12.5px] text-slate-500">No deliveries yet.</div>}
+                          {delivery.data?.map((row) => {
+                            const ok = row.status === 'success' || (row.response_status >= 200 && row.response_status < 300);
+                            return (
+                              <div key={row.id} className="flex flex-wrap items-center gap-3 border-b border-slate-100 py-1.5 text-[12px] last:border-0">
+                                {ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <AlertCircle className="h-3.5 w-3.5 text-rose-500" />}
+                                <span className="min-w-0 flex-1 font-mono text-slate-700">{row.event_type}</span>
+                                <span className="rounded-full bg-white px-2 py-0.5 font-mono text-[10.5px] text-slate-600">{row.status}</span>
+                                <span className="text-slate-500">HTTP {row.response_status ?? '—'}</span>
+                                <span className="text-slate-500">{row.attempts} attempt{row.attempts === 1 ? '' : 's'}</span>
+                                <span className="text-slate-400">{fmt(row.created_at)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </Card>
+
+              <p className="text-[11.5px] text-slate-400">
+                Endpoints and deliveries use this browser&apos;s session API key (same key as scoring). There is no rotate-secret or manual-retry route today: the worker retries failed deliveries on a cron, and delivery rows expose status/attempts/HTTP code only — not payload replay. There is also no test-ping route despite <span className="font-mono">webhook.test.v1</span> existing in the catalog.
+              </p>
+            </div>
+          )
           : (
             <div className="space-y-5">
               <Card className="overflow-hidden">
