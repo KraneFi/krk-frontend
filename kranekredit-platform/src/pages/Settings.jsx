@@ -164,7 +164,7 @@ export default function Settings() {
                     <span>
                       <strong className="font-semibold">Usage could not be loaded.</strong>{' '}
                       {!usage.error.status
-                        ? 'The browser could not read an API error: the backend returns this 500 without CORS headers, so it surfaces as a network failure. This is the known billing-usage bug (usage_records.created_at is stored without a timezone while the query passes an aware UTC timestamp). Invoices below still load.'
+                        ? 'The browser could not read an API error. On this backend the known cause is an unhandled 500 that escapes CORS headers (so it looks like a network failure): usage_records.created_at is stored without a timezone while the query passes an aware UTC timestamp. Invoices below still load.'
                         : usage.error.status >= 500
                           ? 'This is a backend bug in the usage date query (usage_records.created_at is stored without a timezone while the query passes an aware UTC timestamp). Invoices below still load.'
                           : describeError(usage.error)}
