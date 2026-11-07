@@ -7,6 +7,7 @@ const arg = (k) => {
 }
 const token = arg('token') || ''
 const refresh = arg('refresh') || ''
+const apiKey = arg('key') || ''
 const base = 'http://localhost:5173'
 
 const targets = await (await fetch('http://127.0.0.1:9222/json')).json()
@@ -34,7 +35,7 @@ await send('Page.enable')
 await send('Page.navigate', { url: `${base}/` })
 await sleep(1200)
 await send('Runtime.evaluate', {
-  expression: `localStorage.setItem('kk-access-token', ${JSON.stringify(token)}); localStorage.setItem('kk-refresh-token', ${JSON.stringify(refresh)});`,
+  expression: `localStorage.setItem('kk-access-token', ${JSON.stringify(token)}); localStorage.setItem('kk-refresh-token', ${JSON.stringify(refresh)});${apiKey ? ` sessionStorage.setItem('kk-scoring-key', ${JSON.stringify(apiKey)});` : ''}`,
 })
 
 await send('Page.navigate', { url: `${base}${route}` })

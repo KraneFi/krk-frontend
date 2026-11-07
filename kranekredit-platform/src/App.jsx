@@ -16,6 +16,7 @@ import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
 import NotFound from './pages/NotFound.jsx';
 import { bootstrap, useSession } from './api/auth.js';
+import AgreementGate from './components/AgreementGate.jsx';
 import { LIVE } from './config.js';
 
 const ROUTES = {
@@ -64,7 +65,7 @@ function Gate({ children }) {
     );
   }
   if (!user) return <Login />;
-  return children;
+  return <AgreementGate key={user.id}>{children}</AgreementGate>;
 }
 
 export default function App() {

@@ -37,6 +37,7 @@ export const kyb = {
 
 export const account = {
   pendingAgreements: () => api.get('/me/agreements/pending'),
+  acceptAgreements: (documentIds) => api.post('/legal/acceptances', { document_ids: documentIds }),
 
   // Phone and TOTP are what the KYB "phone"/"twofa" items derive their status from.
   sendPhoneCode: (phone) => api.post('/auth/phone/send-code', { phone }),
