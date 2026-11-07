@@ -7,6 +7,7 @@ import { Card, TierBadge, OutcomeBadge, Pill, SectionLabel, IconTile, cn } from 
 import { Link, useApp } from '../router.jsx';
 import { useSession } from '../api/auth.js';
 import { getCheck, saveCheck, removeCheck, scores, ensureScoringKey } from '../api/scoring.js';
+import { ai } from '../api/ai.js';
 import { describeError } from '../api/useApi.js';
 
 const ENGINE_LABEL = {
@@ -46,6 +47,9 @@ export default function CheckDetailLive({ id }) {
   const tenantId = user?.tenant_id;
   const [record, setRecord] = useState(() => getCheck(tenantId, id));
   const [busy, setBusy] = useState(false);
+  const [advice, setAdvice] = useState(null);
+  const [adviceError, setAdviceError] = useState(null);
+  const [adviceBusy, setAdviceBusy] = useState(false);
 
   if (!record) {
     return (
@@ -111,6 +115,19 @@ export default function CheckDetailLive({ id }) {
   const drop = () => {
     removeCheck(tenantId, record.id);
     navigate('/checks');
+  };
+
+  const getAdvice = async () => {
+    setAdviceBusy(true);
+    setAdviceError(null);
+    try {
+      const generated = await ai.advice(tenantId, record.individual_id);
+      setAdvice(generated);
+    } catch (err) {
+      setAdviceError(err);
+    } finally {
+      setAdviceBusy(false);
+    }
   };
 
   return (
@@ -237,6 +254,42 @@ export default function CheckDetailLive({ id }) {
               <p className="mt-1 text-[11.5px] text-slate-500">Generated text — not a credit decision. The API has no approve/decline field today.</p>
             </div>
           )}
+
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Sparkles className="h-4 w-4 text-indigo-500" />
+              <span className="text-[13px] font-semibold text-slate-900">AI financial advice</span>
+              <button
+                onClick={getAdvice}
+                disabled={adviceBusy}
+                className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-[12.5px] font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {adviceBusy ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Generating…</> : advice ? 'Regenerate advice' : 'Generate advice'}
+              </button>
+            </div>
+            <p className="mt-1.5 text-[11.5px] text-slate-500">
+              Calls POST /ai/advice for this borrower. Advisory text only — not a credit decision.
+            </p>
+
+            {adviceError && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12.5px] text-amber-800">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  {adviceError.code === 'LLM_PROVIDER_ERROR'
+                    ? 'The request reached the API, but the LLM provider rejected the deployment’s configured key. AI output is unavailable until a real LLM key is set on the backend.'
+                    : describeError(adviceError)}
+                  {adviceError.requestId && <span className="mt-1 block font-mono text-[10.5px] text-amber-700">request {adviceError.requestId}</span>}
+                </span>
+              </div>
+            )}
+
+            {advice && (
+              <>
+                <p className="mt-3 whitespace-pre-wrap text-[13px] text-slate-700">{advice.advice}</p>
+                <p className="mt-2 text-[11.5px] text-slate-500">Model {advice.model_used} · {advice.tokens_used} tokens</p>
+              </>
+            )}
+          </div>
 
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-[12.5px] text-slate-600">
             <Layers className="h-4 w-4 text-slate-400" />
