@@ -11,6 +11,13 @@ import KybItemPanel from '../components/KybItemPanel.jsx';
 
 const LINEAGE_ICON = { ShieldCheck, Database, Check, GitMerge };
 
+const prettyStatus = (s) => (s ? s.replace(/_/g, ' ') : '—');
+const fmtWhen = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
 const TIER_LABELS = [
   { tier: 'TIER 0', name: 'Explore', req: 'Account created' },
   { tier: 'TIER 1', name: 'Sandbox', req: 'Phone and business basics' },
@@ -38,6 +45,7 @@ export default function Compliance() {
   const [openKey, setOpenKey] = useState(null);
   const access = useApi(() => kyb.access(), [], { enabled: LIVE });
   const verification = useApi(() => kyb.verification(), [], { enabled: LIVE });
+  const history = useApi(() => kyb.history(), [], { enabled: LIVE && tab === 'lineage' });
 
   // Live: derive tiers from access.level; mock: keep the generated checklist.
   const tiers = LIVE && access.data
@@ -171,7 +179,42 @@ export default function Compliance() {
         </>
       )}
 
-      {tab === 'lineage' && (
+      {tab === 'lineage' && (LIVE ? (
+        <Card className="p-5">
+          <CardHeader
+            title="Verification Activity"
+            sub="Every KYB item change, with actor, timestamp and status transition — live from GET /orgs/current/verification/history"
+            right={<button onClick={() => history.refetch()} className="text-[12.5px] font-medium text-indigo-600 hover:underline">Refresh</button>}
+          />
+          {history.loading && <div className="mt-4 flex items-center gap-2 text-[13px] text-slate-500"><Loader2 className="h-4 w-4 animate-spin text-indigo-500" />Loading verification history…</div>}
+          {history.error && <div className="mt-4 flex items-start gap-2 text-[13px] text-amber-800"><AlertCircle className="mt-0.5 h-4 w-4" />{describeError(history.error)}</div>}
+          {history.data && !history.data.length && <div className="mt-6 text-center text-[13px] text-slate-500">No verification activity recorded yet.</div>}
+          {history.data?.length > 0 && (
+            <ol className="mt-5">
+              {history.data.map((h, i) => {
+                const ok = h.to_status === 'verified';
+                return (
+                  <li key={`${h.at}-${h.key}-${i}`} className="relative flex gap-3 pb-5 last:pb-0">
+                    {i < history.data.length - 1 && <span className="absolute left-[11px] top-7 h-[calc(100%-22px)] w-px bg-slate-200" />}
+                    <span className={cn('grid h-6 w-6 shrink-0 place-items-center rounded-full', ok ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')}>
+                      {ok ? <Check className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13.5px] font-medium text-slate-900">{h.title}</div>
+                      <div className="text-[12px] text-slate-500">{h.text}</div>
+                      {h.actor_name && <div className="text-[11.5px] text-slate-400">by {h.actor_name}</div>}
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono text-[11.5px] text-slate-500">{fmtWhen(h.at)}</div>
+                      <div className="text-[11.5px] text-slate-400">{prettyStatus(h.from_status)} → {prettyStatus(h.to_status)}</div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </Card>
+      ) : (
         <Card className="p-5">
           <CardHeader title={`Data Lineage — Check ${LINEAGE.id}`} sub="Every data source, with timestamps, consent basis, and waterfall path" />
           <ol className="mt-5">
@@ -188,7 +231,7 @@ export default function Compliance() {
             })}
           </ol>
         </Card>
-      )}
+      ))}
 
       {tab === 'retention' && (
         <Card className="overflow-hidden">
