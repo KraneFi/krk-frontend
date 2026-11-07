@@ -36,6 +36,15 @@ export async function ensureScoringKey(tenantId) {
   return created.raw_key
 }
 
+/**
+ * Tenant-scoped (X-API-Key) call outside scoring: billing, webhooks and AI.
+ * Reuses the same per-browser session key, minting one only if needed.
+ */
+export async function keyedForTenant(tenantId, path, opts = {}) {
+  await ensureScoringKey(tenantId)
+  return scored(path, opts)
+}
+
 async function scored(path, { method = 'GET', body } = {}) {
   const key = getScoringKey()
   if (!key) throw new ApiError(401, 'no_api_key', 'No scoring key for this browser session.')

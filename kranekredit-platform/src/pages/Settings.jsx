@@ -5,6 +5,8 @@ import { NOTIFICATIONS } from '../data/core.js';
 import { useData } from '../data/DataContext.jsx';
 import { useApp } from '../router.jsx';
 import { kyb } from '../api/resources.js';
+import { billing } from '../api/billing.js';
+import { useSession } from '../api/auth.js';
 import { useApi, describeError } from '../api/useApi.js';
 import { LIVE } from '../config.js';
 
@@ -44,12 +46,16 @@ function NotWired({ title, reason }) {
 export default function Settings() {
   const { INTEGRATIONS, BILLING, ORG } = useData();
   const { notify } = useApp();
+  const { user } = useSession();
   const [sec, setSec] = useState('profile');
   const [notifs, setNotifs] = useState(NOTIFICATIONS.map((n) => n.on));
   const [profile, setProfile] = useState(ORG);
   const [saving, setSaving] = useState(false);
 
   const org = useApi(() => kyb.current(), [], { enabled: LIVE });
+  const tenantId = user?.tenant_id;
+  const usage = useApi(() => billing.usage(tenantId), [tenantId], { enabled: LIVE && sec === 'billing' && Boolean(tenantId) });
+  const invoices = useApi(() => billing.invoices(tenantId), [tenantId], { enabled: LIVE && sec === 'billing' && Boolean(tenantId) });
 
   // Mirror the live organisation into the local form state once it loads.
   useEffect(() => {
@@ -138,7 +144,89 @@ export default function Settings() {
       )}
 
       {sec === 'billing' && (LIVE
-        ? <NotWired title="Billing requires a tenant API key" reason="GET /billing/usage and /billing/invoices are guarded by X-API-Key, not the user session. The console mints a session key for scoring only (kept in sessionStorage), so this needs the thin BFF before it can be shown — the plan and usage figures you saw before were invented." />
+        ? (
+          <div className="space-y-5">
+            {!tenantId && (
+              <NotWired title="No tenant on this account" reason="Billing is scoped to a lender organisation, and this account has none yet. Create one under Compliance → KYB." />
+            )}
+
+            {tenantId && (
+              <Card className="p-6">
+                <CardHeader
+                  title="Usage"
+                  sub="Live from GET /billing/usage — requests recorded this period"
+                  right={<span className="text-[12px] font-medium text-slate-500">{org.data ? `Level ${org.data.access_level} · ${org.data.access_label}` : ''}</span>}
+                />
+                {usage.loading && <div className="mt-4 flex items-center gap-2 text-[13px] text-slate-500"><Loader2 className="h-4 w-4 animate-spin text-indigo-500" />Loading usage…</div>}
+                {usage.error && (
+                  <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-[13px] text-amber-800">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      <strong className="font-semibold">Usage could not be loaded.</strong>{' '}
+                      {!usage.error.status
+                        ? 'The browser could not read an API error: the backend returns this 500 without CORS headers, so it surfaces as a network failure. This is the known billing-usage bug (usage_records.created_at is stored without a timezone while the query passes an aware UTC timestamp). Invoices below still load.'
+                        : usage.error.status >= 500
+                          ? 'This is a backend bug in the usage date query (usage_records.created_at is stored without a timezone while the query passes an aware UTC timestamp). Invoices below still load.'
+                          : describeError(usage.error)}
+                    </span>
+                  </div>
+                )}
+                {usage.data && (
+                  <div className="mt-5">
+                    <div className="flex flex-wrap items-end gap-6">
+                      <div>
+                        <div className="text-[12px] text-slate-500">Total requests</div>
+                        <div className="mt-1 text-[26px] font-semibold leading-none text-slate-900 num">{usage.data.total_requests}</div>
+                      </div>
+                      <div>
+                        <div className="text-[12px] text-slate-500">Period</div>
+                        <div className="mt-1 font-mono text-[14px] text-slate-900">{usage.data.period}</div>
+                      </div>
+                    </div>
+                    {Object.keys(usage.data.breakdown || {}).length > 0 && (
+                      <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
+                        {Object.entries(usage.data.breakdown).map(([type, count]) => (
+                          <div key={type} className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 text-[13px] last:border-0">
+                            <span className="font-mono text-slate-600">{type}</span>
+                            <span className="font-semibold text-slate-900 num">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {tenantId && (
+              <Card className="overflow-hidden">
+                <div className="p-6">
+                  <CardHeader title="Invoices" sub="Live from GET /billing/invoices — issued per billing period" />
+                </div>
+                {invoices.loading && <div className="flex items-center gap-2 border-t border-slate-100 px-6 py-4 text-[13px] text-slate-500"><Loader2 className="h-4 w-4 animate-spin text-indigo-500" />Loading invoices…</div>}
+                {invoices.error && <div className="flex items-start gap-2 border-t border-slate-100 px-6 py-4 text-[13px] text-amber-800"><AlertCircle className="mt-0.5 h-4 w-4" />{describeError(invoices.error)}</div>}
+                {invoices.data && !invoices.data.length && <div className="border-t border-slate-100 px-6 py-8 text-center text-[13px] text-slate-500">No invoices yet — they are issued at the end of a billing period.</div>}
+                {invoices.data?.map((inv) => (
+                  <div key={inv.id} className="flex flex-wrap items-center gap-4 border-t border-slate-100 px-6 py-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-mono text-[12.5px] text-slate-900">{inv.id}</div>
+                      <div className="text-[12px] text-slate-500">{inv.period_start} → {inv.period_end}</div>
+                    </div>
+                    <div className="text-right text-[12px] text-slate-500">
+                      <div>{inv.total_usage} requests</div>
+                      <div className="font-semibold text-slate-900">{Number(inv.total_amount).toLocaleString()}</div>
+                    </div>
+                    <span className={cn('rounded-full px-2 py-0.5 text-[11.5px] font-medium', inv.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>{inv.status}</span>
+                  </div>
+                ))}
+              </Card>
+            )}
+
+            <p className="text-[11.5px] text-slate-400">
+              Billing calls use this browser&apos;s session API key (same key as scoring), not the console login token. The key lives in sessionStorage and is revocable from API &amp; Docs → API Keys.
+            </p>
+          </div>
+        )
         : (
           <Card className="h-fit p-6">
             <CardHeader title="Billing & Plan" sub="Manage your subscription and usage" />
