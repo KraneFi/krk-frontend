@@ -1,12 +1,22 @@
 import { useState } from 'react';
-import { UserPlus, ShieldAlert, Clock, X, Check, History, Loader2, AlertCircle } from 'lucide-react';
+import { UserPlus, ShieldAlert, Clock, X, Check, History, Loader2, AlertCircle, Mail, Trash2, RotateCcw } from 'lucide-react';
 import { Card, CardHeader, PillTabs, Avatar, cn } from '../components/ui.jsx';
 import { ROLE_STYLE } from '../data/core.js';
 import { useData } from '../data/DataContext.jsx';
 import { useApp } from '../router.jsx';
 import { team } from '../api/resources.js';
+import { useSession } from '../api/auth.js';
 import { useApi, describeError } from '../api/useApi.js';
 import { LIVE } from '../config.js';
+
+const INVITE_ROLES = [
+  ['credit_analyst', 'Credit Analyst'],
+  ['credit_ops', 'Credit Ops'],
+  ['compliance_officer', 'Compliance Officer'],
+  ['developer', 'Developer'],
+  ['viewer', 'Viewer'],
+  ['admin', 'Admin'],
+];
 
 const fmtDate = (iso) => {
   if (!iso) return '—';
@@ -17,9 +27,16 @@ const fmtDate = (iso) => {
 export default function Users() {
   const { USERS, APPROVALS, AUDIT } = useData();
   const { notify } = useApp();
+  const { user } = useSession();
   const [tab, setTab] = useState('team');
   const [approvals, setApprovals] = useState(APPROVALS);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('credit_analyst');
+  const [inviting, setInviting] = useState(false);
   const live = useApi(() => team.members(), [], { enabled: LIVE });
+  const canManageTeam = user?.member_role === 'admin';
+  const liveInvites = useApi(() => team.invites(), [], { enabled: LIVE && canManageTeam });
 
   // Live rows keep the same shape the table already renders.
   const rows = LIVE && live.data
@@ -38,13 +55,94 @@ export default function Users() {
     notify(`${a.title} ${ok ? 'approved' : 'rejected'}`);
   };
 
+  const openInvite = () => {
+    if (!LIVE) return notify('Invite sent for approval (admin invites need a checker)');
+    if (!canManageTeam) return notify('Only organisation admins can invite team members');
+    setTab('team');
+    setInviteOpen((open) => !open);
+  };
+
+  const sendInvite = async (e) => {
+    e.preventDefault();
+    const email = inviteEmail.trim();
+    if (!email) return;
+    setInviting(true);
+    try {
+      await team.invite(email, inviteRole);
+      setInviteEmail('');
+      setInviteRole('credit_analyst');
+      setInviteOpen(false);
+      liveInvites.refetch();
+      notify(`Invite sent to ${email}`);
+    } catch (err) {
+      notify(describeError(err));
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const resendInvite = async (inv) => {
+    try {
+      await team.resendInvite(inv.id);
+      liveInvites.refetch();
+      notify(`Invite resent to ${inv.email}`);
+    } catch (err) {
+      notify(describeError(err));
+    }
+  };
+
+  const revokeInvite = async (inv) => {
+    try {
+      await team.revokeInvite(inv.id);
+      liveInvites.refetch();
+      notify(`Invite revoked for ${inv.email}`);
+    } catch (err) {
+      notify(describeError(err));
+    }
+  };
+
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <PillTabs value={tab} onChange={setTab} tabs={[{ key: 'team', label: 'Team' }, { key: 'approvals', label: 'Pending Approvals', badge: approvals.length || null }, { key: 'audit', label: 'Audit Log' }]} />
-        <button onClick={() => notify(LIVE ? 'Invite flow is not wired yet — backend is ready at POST /team/invites' : 'Invite sent for approval (admin invites need a checker)')} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 text-[13px] font-medium text-white shadow-sm hover:bg-indigo-700"><UserPlus className="h-4 w-4" />Invite Member</button>
+        <button onClick={openInvite} disabled={LIVE && !canManageTeam} title={LIVE && !canManageTeam ? 'Only organisation admins can invite team members' : undefined} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 text-[13px] font-medium text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-50 disabled:text-indigo-300"><UserPlus className="h-4 w-4" />Invite Member</button>
       </div>
+
+      {tab === 'team' && LIVE && inviteOpen && (
+        <Card className="p-5">
+          <CardHeader title="Invite a team member" sub="They receive an email invite. Inviting an Admin needs Live (level 2) and a second approver." />
+          <form onSubmit={sendInvite} className="mt-4 flex flex-wrap items-end gap-3">
+            <label htmlFor="invite-email" className="block min-w-[220px] flex-1">
+              <span className="text-[13px] font-medium text-slate-900">Work email</span>
+              <input
+                id="invite-email"
+                type="email"
+                required
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="name@company.com"
+                className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-[13.5px] focus:border-indigo-300 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10"
+              />
+            </label>
+            <label htmlFor="invite-role" className="block">
+              <span className="text-[13px] font-medium text-slate-900">Role</span>
+              <select
+                id="invite-role"
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+                className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-[13.5px] focus:border-indigo-300 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10"
+              >
+                {INVITE_ROLES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <button type="submit" disabled={inviting || !inviteEmail.trim()} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-[13.5px] font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+              {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}Send invite
+            </button>
+            <button type="button" onClick={() => setInviteOpen(false)} className="inline-flex h-10 items-center rounded-xl border border-slate-200 px-4 text-[13.5px] font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
+          </form>
+        </Card>
+      )}
 
       {tab === 'team' && LIVE && live.loading && (
         <Card className="flex items-center gap-3 p-6 text-[13px] text-slate-500">
@@ -77,6 +175,41 @@ export default function Users() {
               ))}
             </tbody>
           </table>
+        </Card>
+      )}
+
+      {tab === 'team' && LIVE && canManageTeam && (
+        <Card className="overflow-hidden">
+          <div className="p-5">
+            <CardHeader
+              title="Pending Invites"
+              sub="Waiting and expired invites — expired ones can be resent"
+              right={<button onClick={() => liveInvites.refetch()} className="text-[12.5px] font-medium text-indigo-600 hover:underline">Refresh</button>}
+            />
+          </div>
+          {liveInvites.loading && <div className="flex items-center gap-2 border-t border-slate-100 px-5 py-4 text-[13px] text-slate-500"><Loader2 className="h-4 w-4 animate-spin text-indigo-500" />Loading invites…</div>}
+          {liveInvites.error && <div className="flex items-start gap-2 border-t border-slate-100 px-5 py-4 text-[13px] text-amber-800"><AlertCircle className="mt-0.5 h-4 w-4" />{describeError(liveInvites.error)}</div>}
+          {liveInvites.data && !liveInvites.data.length && <div className="border-t border-slate-100 px-5 py-6 text-center text-[13px] text-slate-500">No invites waiting.</div>}
+          {liveInvites.data?.map((inv) => (
+            <div key={inv.id} className="flex flex-wrap items-center gap-4 border-t border-slate-100 px-5 py-4">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-indigo-50 text-indigo-600"><Mail className="h-4 w-4" /></span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[13.5px] font-medium text-slate-900">{inv.email}</span>
+                  <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', inv.status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600')}>{inv.status}</span>
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-medium text-slate-600">{inv.role_label}</span>
+                </div>
+                <div className="text-[12px] text-slate-500">
+                  Sent {fmtDate(inv.sent_at)} · Expires {fmtDate(inv.expires_at)}
+                  {inv.invited_by_name ? ` · by ${inv.invited_by_name}` : ''}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => resendInvite(inv)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[12.5px] font-medium text-slate-700 hover:bg-slate-50"><RotateCcw className="h-3.5 w-3.5" />Resend</button>
+                <button onClick={() => revokeInvite(inv)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 px-2.5 text-[12.5px] font-medium text-rose-600 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" />Revoke</button>
+              </div>
+            </div>
+          ))}
         </Card>
       )}
 
