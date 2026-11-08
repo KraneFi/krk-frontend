@@ -42,19 +42,20 @@ export function Button({ variant = 'primary', size = 'md', icon: Icon, iconRight
   );
 }
 
+// Tiers are T1-T6 (backend vocabulary, 0-1000 scale). No T0.
 const TIER_STYLE = {
-  T0: 'bg-red-50 text-red-600', T1: 'bg-orange-50 text-orange-600', T2: 'bg-amber-50 text-amber-600',
-  T3: 'bg-cyan-50 text-cyan-700', T4: 'bg-blue-50 text-blue-700', T5: 'bg-green-50 text-green-700',
+  T1: 'bg-red-50 text-red-600', T2: 'bg-orange-50 text-orange-600', T3: 'bg-amber-50 text-amber-600',
+  T4: 'bg-cyan-50 text-cyan-700', T5: 'bg-blue-50 text-blue-700', T6: 'bg-green-50 text-green-700',
 };
-const TIER_DOT = { T0: 'bg-red-500', T1: 'bg-orange-500', T2: 'bg-amber-500', T3: 'bg-cyan-500', T4: 'bg-blue-500', T5: 'bg-green-500' };
-export const TIER_SOLID = { T0: 'hsl(var(--tier-0))', T1: 'hsl(var(--tier-1))', T2: 'hsl(var(--tier-2))', T3: 'hsl(var(--tier-3))', T4: 'hsl(var(--tier-4))', T5: 'hsl(var(--tier-5))' };
-export const TIER_HERO = { T0: 'from-red-50', T1: 'from-orange-50', T2: 'from-amber-50', T3: 'from-cyan-50', T4: 'from-blue-50', T5: 'from-green-50' };
+const TIER_DOT = { T1: 'bg-red-500', T2: 'bg-orange-500', T3: 'bg-amber-500', T4: 'bg-cyan-500', T5: 'bg-blue-500', T6: 'bg-green-500' };
+export const TIER_SOLID = { T1: 'hsl(var(--tier-0))', T2: 'hsl(var(--tier-1))', T3: 'hsl(var(--tier-2))', T4: 'hsl(var(--tier-3))', T5: 'hsl(var(--tier-4))', T6: 'hsl(var(--tier-5))' };
+export const TIER_HERO = { T1: 'from-red-50', T2: 'from-orange-50', T3: 'from-amber-50', T4: 'from-cyan-50', T5: 'from-blue-50', T6: 'from-green-50' };
 
 export function TierBadge({ tier, size = 'sm', className }) {
   return (
     <span className={cn('inline-flex items-center gap-1.5 rounded-full font-medium leading-tight', size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-[12.5px]', TIER_STYLE[tier], className)}>
       <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', TIER_DOT[tier])} />
-      {tier} · {TIERS[tier].name}
+      {tier} · {TIERS[tier]?.name ?? 'Unrated'}
     </span>
   );
 }
@@ -81,6 +82,25 @@ const DECISION = {
 };
 export function DecisionBadge({ decision, className }) {
   return <span className={cn('inline-flex items-center rounded-md border px-2 py-0.5 text-[11.5px] font-medium', DECISION[decision], className)}>{decision}</span>;
+}
+
+// ScoreOutcome is engine *coverage*, not score quality: a MINIMAL score from one
+// engine can still be a good score. Kept visually distinct from the tier badge so
+// "MINIMAL" is never read as "bad".
+const OUTCOME = {
+  FULL: { tone: 'emerald', engines: '3 engines' },
+  DEGRADED: { tone: 'amber', engines: '2 engines' },
+  MINIMAL: { tone: 'orange', engines: '1 engine' },
+  NO_SCORE: { tone: 'rose', engines: 'no engines' },
+};
+export function OutcomeBadge({ outcome, className }) {
+  const o = OUTCOME[outcome];
+  if (!o) return <Pill tone="slate" className={className}>{outcome || 'No outcome'}</Pill>;
+  return (
+    <Pill tone={o.tone} dot className={cn('cursor-help', className)}>
+      <span title="Engine coverage, not score quality">{outcome} · {o.engines}</span>
+    </Pill>
+  );
 }
 
 export function Avatar({ name, className, gradient }) {

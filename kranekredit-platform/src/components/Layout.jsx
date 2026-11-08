@@ -1,11 +1,17 @@
 import { useState } from 'react';
 import {
   LayoutGrid, FileCheck2, SlidersHorizontal, KanbanSquare, CreditCard, Code2, Users, ShieldCheck, Settings2,
-  ChevronRight, Sparkles, Search, Bell, Plus, Menu, X, Shuffle,
+  ChevronRight, Sparkles, Search, Bell, Plus, Menu, X, Shuffle, LogOut,
 } from 'lucide-react';
 import { useData } from '../data/DataContext.jsx';
 import { useApp } from '../router.jsx';
+import { useSession, logout } from '../api/auth.js';
+import { kyb } from '../api/resources.js';
+import { useApi } from '../api/useApi.js';
+import { LIVE } from '../config.js';
 import { cn } from './ui.jsx';
+
+const initialsOf = (name = '') => name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 
 const NAV = [
   { group: 'Overview', items: [{ to: '/', label: 'Dashboard', icon: LayoutGrid }] },
@@ -41,6 +47,14 @@ export const PAGE_META = {
 
 function Sidebar({ open, onClose }) {
   const { path, navigate } = useApp();
+  const session = useSession();
+  const access = useApi(() => kyb.access(), [], { enabled: LIVE });
+  const level = access.data?.level;
+  const tierText = LIVE && access.data ? `Tier ${level} — ${access.data.label}` : 'Tier 2 — Live';
+  const tierTone = level >= 2 ? 'emerald' : 'amber';
+  const tierSub = LIVE && access.data
+    ? (access.data.next_label ? `Next: ${access.data.next_label} (${access.data.progress.done}/${access.data.progress.total})` : 'Full live access granted')
+    : 'Restricted live access — manual-review floor enforced';
   const isActive = (to) => (to === '/' ? path === '/' : path === to || path.startsWith(to + '/'));
   return (
     <aside
@@ -66,11 +80,11 @@ function Sidebar({ open, onClose }) {
       <div className="mx-4 rounded-xl border border-white/10 bg-sidebar-surface px-3 py-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">Access Tier</span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10.5px] font-semibold text-amber-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />Tier 2 — Live
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${tierTone === 'emerald' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${tierTone === 'emerald' ? 'bg-emerald-400' : 'bg-amber-400'}`} />{tierText}
           </span>
         </div>
-        <p className="mt-1.5 text-[11.5px] leading-snug text-slate-400">Restricted live access — manual-review floor enforced</p>
+        <p className="mt-1.5 text-[11.5px] leading-snug text-slate-400">{tierSub}</p>
       </div>
 
       <nav className="mt-4 flex-1 space-y-5 overflow-y-auto px-3 pb-4">
@@ -104,11 +118,18 @@ function Sidebar({ open, onClose }) {
       </nav>
 
       <div className="flex items-center gap-3 border-t border-white/10 px-5 py-4" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))' }}>
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-[11px] font-semibold text-white">DK</span>
-        <div className="leading-tight">
-          <div className="text-[13px] font-semibold text-white">Dammy Krane</div>
-          <div className="text-[11.5px] text-slate-400">Org Admin · KraneTech</div>
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-[11px] font-semibold text-white">
+          {initialsOf(LIVE ? (session.user?.full_name || '?') : 'Dammy Krane')}
+        </span>
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className="truncate text-[13px] font-semibold text-white">{LIVE ? (session.user?.full_name || 'Signed in') : 'Dammy Krane'}</div>
+          <div className="truncate text-[11.5px] text-slate-400">{LIVE ? (session.user?.member_role || session.user?.role || '') : 'Org Admin · KraneTech'}</div>
         </div>
+        {LIVE && (
+          <button onClick={logout} title="Sign out" className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white" aria-label="Sign out">
+            <LogOut className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </aside>
   );

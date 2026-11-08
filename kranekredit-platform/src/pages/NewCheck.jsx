@@ -8,6 +8,8 @@ import { useData } from '../data/DataContext.jsx';
 import { makeRng } from '../data/rng.js';
 import { bvnAccounts } from '../data/gen-check.js';
 import { Link, useApp } from '../router.jsx';
+import { LIVE } from '../config.js';
+import NewCheckLive from './NewCheckLive.jsx';
 
 const MOBI_OPTIONS = ['Connected', 'Not available on this channel', 'Consent not granted', 'Temporarily unavailable', 'Low confidence'];
 const MOBI_STATUS = {
@@ -42,7 +44,7 @@ function StatusChip({ state }) {
   return <span className="text-[11.5px] text-slate-400">Queued</span>;
 }
 
-export default function NewCheck() {
+function MockNewCheck() {
   const { navigate } = useApp();
   const { runCheck, seed } = useData();
   const [result, setResult] = useState(null);
@@ -327,4 +329,8 @@ export default function NewCheck() {
       <Dots step={step} />
     </div>
   );
+}
+
+export default function NewCheck() {
+  return LIVE ? <NewCheckLive /> : <MockNewCheck />;
 }

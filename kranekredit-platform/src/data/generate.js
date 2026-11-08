@@ -6,7 +6,7 @@ import { makeCheck, randomName, tierOf } from './gen-check.js';
 import { PRODUCT_CATALOG } from './catalog.js';
 import { BANKS } from './pools.js';
 
-const TIERS = ['T0', 'T1', 'T2', 'T3', 'T4', 'T5'];
+const TIERS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'];
 const ROLES = ['Credit/Risk Analyst', 'Credit/Risk Analyst', 'Credit Ops (Policy)', 'Developer', 'Compliance Officer', 'Viewer', 'Collections Officer'];
 
 export function generateData(seed) {

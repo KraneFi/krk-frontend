@@ -3,11 +3,13 @@ import { FileCheck, ClipboardCheck, ShieldAlert, Search, Download, Check } from 
 import { Card, Avatar, TierBadge, DecisionBadge, Pill, IconTile, cn } from '../components/ui.jsx';
 import { useData } from '../data/DataContext.jsx';
 import { Link, useApp } from '../router.jsx';
+import { LIVE } from '../config.js';
+import ChecksLive from './ChecksLive.jsx';
 
 const FILTERS = ['All', 'Completed', 'Manual Review', 'Auto-Approve', 'Auto-Decline', 'Refer'];
 const INTEGRITY_TONE = { Clear: 'emerald', Review: 'amber', 'High Risk': 'rose' };
 
-export default function Checks() {
+function MockChecks() {
   const { navigate, notify } = useApp();
   const { CHECKS } = useData();
   const [filter, setFilter] = useState('All');
@@ -112,4 +114,8 @@ export default function Checks() {
       </Card>
     </div>
   );
+}
+
+export default function Checks() {
+  return LIVE ? <ChecksLive /> : <MockChecks />;
 }

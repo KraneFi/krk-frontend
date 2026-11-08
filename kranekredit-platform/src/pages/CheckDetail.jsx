@@ -3,10 +3,12 @@ import {
   ArrowLeft, RefreshCw, Download, ChevronRight, Copy, CheckCircle2, AlertTriangle, Landmark, ShieldCheck, Smartphone,
   Sparkles, Info, Clock, User, Layers, TrendingUp, TrendingDown, XCircle, Zap,
 } from 'lucide-react';
-import { Card, CardHeader, TierBadge, DecisionBadge, Pill, SectionLabel, LineTabs, IconTile, cn, TIER_HERO } from '../components/ui.jsx';
+import { Card, CardHeader, TierBadge, DecisionBadge, OutcomeBadge, Pill, SectionLabel, LineTabs, IconTile, cn, TIER_HERO } from '../components/ui.jsx';
 import { useData } from '../data/DataContext.jsx';
 import { Link, useApp } from '../router.jsx';
 import DeepAnalysis from '../deep/DeepAnalysis.jsx';
+import { LIVE } from '../config.js';
+import CheckDetailLive from './CheckDetailLive.jsx';
 
 function Metric({ label, value, sub }) {
   return (
@@ -31,13 +33,14 @@ function Ring({ value, tone }) {
   );
 }
 
-export default function CheckDetail({ id }) {
+function MockCheckDetail({ id }) {
   const { REPORTS, CHECKS } = useData();
   const r = REPORTS[id] || REPORTS[CHECKS[0].id];
   const { notify, navigate } = useApp();
   const [tab, setTab] = useState('overview');
   const [deep, setDeep] = useState(null);
-  const degraded = r.label === 'DEGRADED';
+  const outcome = r.outcome || r.label || 'FULL';
+  const degraded = outcome !== 'FULL';
 
   const engines = [
     { key: 'bs360', name: 'BS360', desc: 'Bank Statement Intelligence', icon: Landmark, tile: 'bg-indigo-50 text-indigo-600', ...r.engines.bs360 },
@@ -70,19 +73,20 @@ export default function CheckDetail({ id }) {
             </div>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
-            <Metric label="KRK Score" value={r.score} sub="300–900 range" />
+            <Metric label="KRK Score" value={r.score} sub="0–1000 scale" />
             <Metric label="Risk Code" value={r.risk} sub="R1–R5 scale" />
-            <Metric label="Debt Code" value={r.debt} sub="D1–D5 scale" />
+            <Metric label="Debt Code" value={r.debt} sub="D0–D5 scale" />
             <Metric label="Confidence" value={`${r.confidence}%`} sub="Engine availability" />
             <Metric label="Policy" value={r.policy} sub="Decision version" />
           </div>
         </div>
 
         <div className="space-y-5 p-6 pt-4">
-          <div className={cn('flex items-center gap-3 rounded-xl border px-4 py-3', degraded ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50')}>
+          <div className={cn('flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3', degraded ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50')}>
             <IconTile icon={degraded ? AlertTriangle : CheckCircle2} size="sm" className={degraded ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'} />
-            <span className="text-[14px] font-semibold text-slate-900">Scoring Label: {r.label}</span>
-            <span className="text-[13px] text-slate-500">· Confidence {r.confidence}%</span>
+            <span className="text-[14px] font-semibold text-slate-900">Engine coverage</span>
+            <OutcomeBadge outcome={outcome} />
+            <span className="text-[13px] text-slate-500">· Confidence {r.confidence}% · {engines.filter((e) => e.available !== false).length} of 3 engines reported</span>
           </div>
 
           <div>
@@ -366,4 +370,8 @@ export default function CheckDetail({ id }) {
       {deep && <DeepAnalysis report={r} initial={deep} onClose={() => setDeep(null)} />}
     </div>
   );
+}
+
+export default function CheckDetail(props) {
+  return LIVE ? <CheckDetailLive {...props} /> : <MockCheckDetail {...props} />;
 }

@@ -1,11 +1,39 @@
 import { useState } from 'react';
-import { Lock, Check, Clock, Hourglass, ShieldCheck, Database, GitMerge, Trash2, Download } from 'lucide-react';
+import { Lock, Check, Clock, Hourglass, ShieldCheck, Database, GitMerge, Trash2, Download, Loader2, AlertCircle, ChevronRight, ChevronDown } from 'lucide-react';
 import { Card, CardHeader, PillTabs, IconTile, cn } from '../components/ui.jsx';
 import { ACCESS_TIERS, RETENTION } from '../data/core.js';
 import { useData } from '../data/DataContext.jsx';
 import { useApp } from '../router.jsx';
+import { kyb } from '../api/resources.js';
+import { useApi, describeError } from '../api/useApi.js';
+import { LIVE } from '../config.js';
+import KybItemPanel from '../components/KybItemPanel.jsx';
 
 const LINEAGE_ICON = { ShieldCheck, Database, Check, GitMerge };
+
+const prettyStatus = (s) => (s ? s.replace(/_/g, ' ') : '—');
+const fmtWhen = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+const TIER_LABELS = [
+  { tier: 'TIER 0', name: 'Explore', req: 'Account created' },
+  { tier: 'TIER 1', name: 'Sandbox', req: 'Phone and business basics' },
+  { tier: 'TIER 2', name: 'Live (Restricted)', req: 'KYB documents verified' },
+  { tier: 'TIER 3', name: 'Live (Full)', req: 'Compliance review of first live checks' },
+];
+
+const DOC_STATUS = {
+  verified: { label: 'Verified', ok: true },
+  needs_review: { label: 'In Review', ok: false },
+  under_review: { label: 'In Review', ok: false },
+  submitted: { label: 'In Review', ok: false },
+  not_started: { label: 'Not started', ok: false },
+  action_required: { label: 'Action required', ok: false },
+  rejected: { label: 'Rejected', ok: false },
+};
 
 export default function Compliance() {
   const { KYB_DOCS, LINEAGE } = useData();
@@ -14,17 +42,50 @@ export default function Compliance() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [cust, setCust] = useState('');
+  const [openKey, setOpenKey] = useState(null);
+  const access = useApi(() => kyb.access(), [], { enabled: LIVE });
+  const verification = useApi(() => kyb.verification(), [], { enabled: LIVE });
+  const history = useApi(() => kyb.history(), [], { enabled: LIVE && tab === 'lineage' });
+
+  // Live: derive tiers from access.level; mock: keep the generated checklist.
+  const tiers = LIVE && access.data
+    ? TIER_LABELS.map((t, i) => ({
+        ...t,
+        state: i < access.data.level ? 'done' : i === access.data.level ? 'current' : 'locked',
+      }))
+    : ACCESS_TIERS;
+
+  const docs = LIVE && verification.data
+    ? verification.data.groups.flatMap((g) => g.items).map((it) => {
+        const s = DOC_STATUS[it.status] || { label: it.status, ok: false };
+        return { key: it.key, name: it.title, status: s.label, ok: s.ok, why: it.why, updated: it.updated_at };
+      })
+    : KYB_DOCS.map((d) => ({ ...d, status: d.status, ok: d.status === 'Verified', why: null }));
+
+  const refreshCompliance = () => { access.refetch(); verification.refetch(); };
 
   return (
     <div className="space-y-6">
       <PillTabs value={tab} onChange={setTab} tabs={[{ key: 'kyb', label: 'KYB & Access Tiers' }, { key: 'lineage', label: 'Data Lineage' }, { key: 'retention', label: 'Retention' }, { key: 'export', label: 'Audit Export' }]} />
+
+      {tab === 'kyb' && LIVE && (access.loading || verification.loading) && (
+        <Card className="flex items-center gap-3 p-6 text-[13px] text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />Loading compliance status…
+        </Card>
+      )}
+      {tab === 'kyb' && LIVE && (access.error || verification.error) && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-[13px] text-amber-800">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{describeError(access.error || verification.error)}</span>
+        </div>
+      )}
 
       {tab === 'kyb' && (
         <>
           <Card className="p-5">
             <CardHeader title="Access Tier Progression" icon={Lock} />
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {ACCESS_TIERS.map((t) => (
+              {tiers.map((t) => (
                 <div key={t.tier} className={cn('rounded-xl border p-4', t.state === 'done' && 'border-emerald-200', t.state === 'current' && 'border-amber-300 bg-amber-50/40 ring-1 ring-amber-200', t.state === 'locked' && 'border-slate-200 opacity-60')}>
                   <div className="flex items-center justify-between text-[11px] font-semibold tracking-wider text-slate-500">
                     {t.tier}
@@ -37,23 +98,123 @@ export default function Compliance() {
                 </div>
               ))}
             </div>
+            {LIVE && access.data && (
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-[12.5px] text-slate-600">
+                <span>Level <strong className="text-slate-900">{access.data.level}</strong> · {access.data.label}</span>
+                {access.data.next_label && <span>Next: <strong className="text-slate-900">{access.data.next_label}</strong> ({access.data.progress.done}/{access.data.progress.total})</span>}
+                {access.data.requirements?.length > 0 && (
+                  <span className="text-slate-500">Outstanding: {access.data.requirements.map((r) => r.title).join(', ')}</span>
+                )}
+              </div>
+            )}
           </Card>
           <Card className="overflow-hidden">
-            <div className="p-5"><CardHeader title="KYB Documents" sub="Dynamic checklist scoped to institution type: CBN-Licensed Digital Lender" /></div>
-            {KYB_DOCS.map((d) => (
-              <div key={d.name} className="flex flex-wrap items-center gap-4 border-t border-slate-100 px-5 py-3.5">
-                <IconTile icon={d.status === 'Verified' ? Check : Clock} size="sm" className={cn('h-9 w-9', d.status === 'Verified' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')} />
-                <div className="min-w-0 flex-1"><div className="text-[13.5px] font-medium text-slate-900">{d.name}</div><div className="text-[12px] text-slate-500">Uploaded {d.date}</div></div>
-                {d.status === 'Verified'
-                  ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11.5px] font-medium text-emerald-700"><Check className="h-3 w-3" />Verified</span>
-                  : <><span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11.5px] font-medium text-amber-700"><Hourglass className="h-3 w-3" />In Review</span><span className="text-[12px] text-slate-500">SLA: 1–2 business days</span></>}
-              </div>
-            ))}
+            <div className="p-5">
+              <CardHeader
+                title="KYB Documents"
+                sub={LIVE && verification.data ? `${docs.filter((d) => d.ok).length} of ${docs.length} verified — open any item to complete it` : 'Dynamic checklist scoped to institution type: CBN-Licensed Digital Lender'}
+              />
+            </div>
+            {LIVE && verification.data
+              ? verification.data.groups.map((g) => (
+                  <div key={g.name}>
+                    <div className="flex items-center gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{g.name}</span>
+                      <span className="text-[11px] text-slate-400">{g.done}/{g.total}</span>
+                    </div>
+                    {g.items.map((it) => {
+                      const open = openKey === it.key;
+                      const ok = it.status === 'verified';
+                      const inReview = it.status === 'in_review';
+                      const needsAction = it.status === 'action_needed';
+                      return (
+                        <div key={it.key}>
+                          <button
+                            onClick={() => setOpenKey(open ? null : it.key)}
+                            aria-expanded={open}
+                            className={cn('flex w-full flex-wrap items-center gap-4 border-t border-slate-100 px-5 py-3.5 text-left hover:bg-slate-50/70', open && 'bg-indigo-50/40')}
+                          >
+                            <IconTile icon={ok ? Check : Clock} size="sm" className={cn('h-9 w-9', ok ? 'bg-emerald-50 text-emerald-600' : needsAction ? 'bg-rose-50 text-rose-500' : 'bg-amber-50 text-amber-600')} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[13.5px] font-medium text-slate-900">{it.title}</span>
+                                {it.required_for === 'optional' && (
+                                  <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">Optional</span>
+                                )}
+                              </div>
+                              <div className="text-[12px] text-slate-500">{it.subtitle || it.why}</div>
+                            </div>
+                            {ok
+                              ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11.5px] font-medium text-emerald-700"><Check className="h-3 w-3" />Verified</span>
+                              : inReview
+                                ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11.5px] font-medium text-amber-700"><Hourglass className="h-3 w-3" />In Review</span>
+                                : needsAction
+                                  ? <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11.5px] font-medium text-rose-600"><AlertCircle className="h-3 w-3" />Action needed</span>
+                                  : <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11.5px] text-slate-600">{it.status === 'expiring' ? 'Expiring' : it.status === 'in_progress' ? 'In progress' : 'Not started'}</span>}
+                            <span className="inline-flex items-center gap-1 text-[12.5px] font-medium text-indigo-600">
+                              {it.action_label}{open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            </span>
+                          </button>
+                          {open && <KybItemPanel itemKey={it.key} onClose={() => setOpenKey(null)} onChanged={refreshCompliance} />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))
+              : KYB_DOCS.map((d) => (
+                  <div key={d.name} className="flex flex-wrap items-center gap-4 border-t border-slate-100 px-5 py-3.5">
+                    <IconTile icon={d.ok ? Check : Clock} size="sm" className={cn('h-9 w-9', d.ok ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13.5px] font-medium text-slate-900">{d.name}</div>
+                      <div className="text-[12px] text-slate-500">{d.why || (d.date ? `Uploaded ${d.date}` : 'Awaiting submission')}</div>
+                    </div>
+                    {d.ok
+                      ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11.5px] font-medium text-emerald-700"><Check className="h-3 w-3" />Verified</span>
+                      : d.status === 'In Review'
+                        ? <><span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11.5px] font-medium text-amber-700"><Hourglass className="h-3 w-3" />In Review</span><span className="text-[12px] text-slate-500">SLA: 1–2 business days</span></>
+                        : <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11.5px] text-slate-600">{d.status}</span>}
+                  </div>
+                ))}
           </Card>
         </>
       )}
 
-      {tab === 'lineage' && (
+      {tab === 'lineage' && (LIVE ? (
+        <Card className="p-5">
+          <CardHeader
+            title="Verification Activity"
+            sub="Every KYB item change, with actor, timestamp and status transition — live from GET /orgs/current/verification/history"
+            right={<button onClick={() => history.refetch()} className="text-[12.5px] font-medium text-indigo-600 hover:underline">Refresh</button>}
+          />
+          {history.loading && <div className="mt-4 flex items-center gap-2 text-[13px] text-slate-500"><Loader2 className="h-4 w-4 animate-spin text-indigo-500" />Loading verification history…</div>}
+          {history.error && <div className="mt-4 flex items-start gap-2 text-[13px] text-amber-800"><AlertCircle className="mt-0.5 h-4 w-4" />{describeError(history.error)}</div>}
+          {history.data && !history.data.length && <div className="mt-6 text-center text-[13px] text-slate-500">No verification activity recorded yet.</div>}
+          {history.data?.length > 0 && (
+            <ol className="mt-5">
+              {history.data.map((h, i) => {
+                const ok = h.to_status === 'verified';
+                return (
+                  <li key={`${h.at}-${h.key}-${i}`} className="relative flex gap-3 pb-5 last:pb-0">
+                    {i < history.data.length - 1 && <span className="absolute left-[11px] top-7 h-[calc(100%-22px)] w-px bg-slate-200" />}
+                    <span className={cn('grid h-6 w-6 shrink-0 place-items-center rounded-full', ok ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')}>
+                      {ok ? <Check className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13.5px] font-medium text-slate-900">{h.title}</div>
+                      <div className="text-[12px] text-slate-500">{h.text}</div>
+                      {h.actor_name && <div className="text-[11.5px] text-slate-400">by {h.actor_name}</div>}
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono text-[11.5px] text-slate-500">{fmtWhen(h.at)}</div>
+                      <div className="text-[11.5px] text-slate-400">{prettyStatus(h.from_status)} → {prettyStatus(h.to_status)}</div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </Card>
+      ) : (
         <Card className="p-5">
           <CardHeader title={`Data Lineage — Check ${LINEAGE.id}`} sub="Every data source, with timestamps, consent basis, and waterfall path" />
           <ol className="mt-5">
@@ -70,7 +231,7 @@ export default function Compliance() {
             })}
           </ol>
         </Card>
-      )}
+      ))}
 
       {tab === 'retention' && (
         <Card className="overflow-hidden">

@@ -1,26 +1,29 @@
 // Mock data, transcribed from the Base44 prototype (kranekredit-platform.base44.app).
 
+// Tiers use the backend's vocabulary: T1–T6 over the 0–1000 score scale
+// (`MainThinkerEngine._tier_code`). There is no T0.
 export const TIERS = {
-  T0: { code: 'T0', name: 'Restricted' },
   T1: { code: 'T1', name: 'Krane Basic' },
   T2: { code: 'T2', name: 'Krane Standard' },
   T3: { code: 'T3', name: 'Krane Plus' },
   T4: { code: 'T4', name: 'Krane Prime' },
   T5: { code: 'T5', name: 'Krane Platinum' },
+  T6: { code: 'T6', name: 'Krane Elite' },
 };
 
 export const CHECKS = [
-  { id: 'chk_8f2a', name: 'Adaeze Okonkwo', bvn: '4471', signal: 'KRK-742-R2-D3-T3', score: 742, tier: 'T3', integrity: 'Clear', decision: 'Auto-Approve', status: 'Completed', analyst: 'You', created: '2 min ago' },
-  { id: 'chk_7d1c', name: 'Kwasi Mensah', bvn: '8823', signal: 'KRK-778-R1-D2-T4', score: 778, tier: 'T4', integrity: 'Clear', decision: 'Auto-Approve', status: 'Completed', analyst: 'You', created: '18 min ago' },
-  { id: 'chk_6b9f', name: 'Chidi Okafor', bvn: '1192', signal: 'KRK-534-R3-D4-T1', score: 534, tier: 'T1', integrity: 'Review', decision: 'Manual Review', status: 'Manual Review', analyst: 'Tunde A.', created: '41 min ago' },
+  { id: 'chk_8f2a', name: 'Adaeze Okonkwo', bvn: '4471', signal: 'KRK-742-R2-D3-T4', score: 742, tier: 'T4', integrity: 'Clear', decision: 'Auto-Approve', status: 'Completed', analyst: 'You', created: '2 min ago' },
+  { id: 'chk_7d1c', name: 'Kwasi Mensah', bvn: '8823', signal: 'KRK-778-R2-D2-T4', score: 778, tier: 'T4', integrity: 'Clear', decision: 'Auto-Approve', status: 'Completed', analyst: 'You', created: '18 min ago' },
+  { id: 'chk_6b9f', name: 'Chidi Okafor', bvn: '1192', signal: 'KRK-534-R3-D4-T2', score: 534, tier: 'T2', integrity: 'Review', decision: 'Manual Review', status: 'Manual Review', analyst: 'Tunde A.', created: '41 min ago' },
   { id: 'chk_5a8e', name: 'Funmi Bakare', bvn: '3367', signal: 'KRK-801-R1-D1-T5', score: 801, tier: 'T5', integrity: 'Clear', decision: 'Auto-Approve', status: 'Completed', analyst: 'You', created: '1 hr ago' },
-  { id: 'chk_4c7d', name: 'Tunde Adeyemi', bvn: '7740', signal: 'KRK-412-R4-D5-T0', score: 412, tier: 'T0', integrity: 'Clear', decision: 'Auto-Decline', status: 'Completed', analyst: 'Tunde A.', created: '4 hr ago' },
+  { id: 'chk_4c7d', name: 'Tunde Adeyemi', bvn: '7740', signal: 'KRK-412-R4-D5-T1', score: 412, tier: 'T1', integrity: 'Clear', decision: 'Auto-Decline', status: 'Completed', analyst: 'Tunde A.', created: '4 hr ago' },
   { id: 'chk_3b6c', name: 'Ngozi Eze', bvn: '5598', signal: 'KRK-668-R2-D3-T3', score: 668, tier: 'T3', integrity: 'Clear', decision: 'Manual Review', status: 'Completed', analyst: 'You', created: '5 hr ago' },
   { id: 'chk_2a5b', name: 'Ibrahim Sani', bvn: '2245', signal: 'KRK-589-R3-D4-T2', score: 589, tier: 'T2', integrity: 'High Risk', decision: 'Auto-Approve', status: 'Completed', analyst: 'Kemi O.', created: '6 hr ago' },
-  { id: 'chk_1a4b', name: 'Bola Adebayo', bvn: '8810', signal: 'KRK-715-R2-D3-T3', score: 715, tier: 'T3', integrity: 'Review', decision: 'Manual Review', status: 'Manual Review', analyst: 'Kemi O.', created: '8 hr ago' },
+  { id: 'chk_1a4b', name: 'Bola Adebayo', bvn: '8810', signal: 'KRK-715-R2-D3-T4', score: 715, tier: 'T4', integrity: 'Review', decision: 'Manual Review', status: 'Manual Review', analyst: 'Kemi O.', created: '8 hr ago' },
   { id: 'chk_0a3a', name: 'Yetunde Williams', bvn: '3358', signal: 'KRK-823-R1-D1-T5', score: 823, tier: 'T5', integrity: 'Clear', decision: 'Auto-Approve', status: 'Completed', analyst: 'You', created: '1 day ago' },
-  { id: 'chk_9z2z', name: 'Emeka Nwosu', bvn: '7721', signal: 'KRK-612-R3-D4-T2', score: 612, tier: 'T2', integrity: 'Clear', decision: 'Auto-Decline', status: 'Completed', analyst: 'Tunde A.', created: '1 day ago' },
+  { id: 'chk_9z2z', name: 'Emeka Nwosu', bvn: '7721', signal: 'KRK-612-R3-D4-T3', score: 612, tier: 'T3', integrity: 'Clear', decision: 'Auto-Decline', status: 'Completed', analyst: 'Tunde A.', created: '1 day ago' },
 ];
+
 
 export const DASH_STATS = [
   { label: 'Total Checks', value: '1,284', trend: '+12.4%', icon: 'FileCheck' },
@@ -50,17 +53,17 @@ export const DECLINE_REASONS = [
   { label: 'High DTI ratio', value: 34 },
   { label: 'Bureau delinquency history', value: 28 },
   { label: 'Statement integrity flag', value: 18 },
-  { label: 'Low KRK tier (T0/T1)', value: 12 },
+  { label: 'Low KRK tier (T1)', value: 12 },
   { label: 'Insufficient transaction history', value: 8 },
 ];
 
 export const TIER_DIST = [
-  { tier: 'T0', raw: 8, post: 0 },
   { tier: 'T1', raw: 15, post: 4 },
   { tier: 'T2', raw: 24, post: 18 },
   { tier: 'T3', raw: 28, post: 33 },
   { tier: 'T4', raw: 17, post: 28 },
   { tier: 'T5', raw: 8, post: 17 },
+  { tier: 'T6', raw: 8, post: 0 },
 ];
 
 export const ACTIVITY = [
@@ -82,11 +85,11 @@ export const PRODUCTS = [
 ];
 
 export const RULES = [
-  { id: 'r1', outcome: 'Auto Approve', expr: 'Tier ≥ T3 AND DTI ≤ 35% AND Integrity = Clear AND Bureau Conflict = false' },
-  { id: 'r2', outcome: 'Auto Decline', expr: 'Tier = T0' },
+  { id: 'r1', outcome: 'Auto Approve', expr: 'Score ≥ 600 (T3+) AND DTI ≤ 35% AND Integrity = Clear AND Bureau Conflict = false' },
+  { id: 'r2', outcome: 'Auto Decline', expr: 'Score < 450' },
   { id: 'r3', outcome: 'Refer', expr: 'Integrity = High Risk OR Bureau Conflict = true' },
-  { id: 'r4', outcome: 'Refer', expr: 'Tier = T1 AND DTI > 40%' },
-  { id: 'r5', outcome: 'Auto Approve', expr: 'Tier = T5 AND Confidence ≥ 80% AND Integrity = Clear' },
+  { id: 'r4', outcome: 'Refer', expr: 'Score < 550 AND DTI > 40%' },
+  { id: 'r5', outcome: 'Auto Approve', expr: 'Score ≥ 900 (T6) AND Confidence ≥ 80% AND Integrity = Clear' },
 ];
 
 export const SEGMENTS = [
